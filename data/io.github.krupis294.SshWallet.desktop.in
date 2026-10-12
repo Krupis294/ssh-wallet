@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=SSH Wallet
+GenericName=Správce SSH připojení
+Comment=Seznam SSH hostů, připojení v kitty jedním klikem
+Exec=@EXEC@
+Icon=utilities-terminal
+Terminal=false
+Categories=Network;RemoteAccess;
+Keywords=ssh;terminal;remote;kitty;
+StartupNotify=true
