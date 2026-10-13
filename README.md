@@ -55,7 +55,8 @@ ssh-wallet-rofi --system-theme   # tvůj rofi config
 Klávesová zkratka v Hyprlandu (`~/.config/hypr/UserConfigs/UserKeybinds.conf`):
 
 ```
-bindd = $mainMod ALT, S, ssh wallet, exec, $HOME/.local/bin/ssh-wallet-rofi
+unbind = $mainMod, S  # replaces web search (configs/Keybinds.conf)
+bindd = $mainMod, S, ssh wallet, exec, $HOME/.local/bin/ssh-wallet-rofi
 ```
 
 ## Vzhled
