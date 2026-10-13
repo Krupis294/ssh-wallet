@@ -44,7 +44,10 @@ class Host:
         return f"{self.user}@{self.host}" if self.user else self.host
 
     def subtitle(self) -> str:
-        return f"{self.destination()}:{self.port}"
+        # Bracket IPv6 addresses so the appended port is not read as part of them.
+        host = f"[{self.host}]" if ":" in self.host else self.host
+        user = f"{self.user}@" if self.user else ""
+        return f"{user}{host}:{self.port}"
 
     def matches(self, query: str) -> bool:
         """True when every whitespace-separated term of ``query`` occurs in some field."""

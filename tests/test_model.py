@@ -59,6 +59,12 @@ class HostSubtitleTest(unittest.TestCase):
     def test_without_user(self):
         self.assertEqual(Host(name="n", host="nas").subtitle(), "nas:22")
 
+    def test_ipv6_address_is_bracketed_so_the_port_stays_readable(self):
+        host = Host(name="p", host="2001:718:1001:2cf::e429", user="student")
+
+        self.assertEqual(host.subtitle(), "student@[2001:718:1001:2cf::e429]:22")
+        self.assertEqual(host.destination(), "student@2001:718:1001:2cf::e429")
+
 
 class HostMatchesTest(unittest.TestCase):
     host = Host(name="Web Prod", host="10.0.0.5", user="deploy", note="Hlavní eshop")
