@@ -211,9 +211,17 @@ list.boxed-list > row > box.header > box.title {
   border-spacing: 5px;
 }
 
-/* Rows with a title above an editable value (Název, Host, Username, Heslo). */
+/*
+ * Rows with a title above an editable value (Název, Host, Username, Heslo).
+ * AdwEntryRow stacks the title and the value itself, with a gap sized for its
+ * own font; margin-top on the value is what opens that gap up at 14pt.
+ */
 list.boxed-list > row.entry > box.header > .editable-area {
-  padding: 9px 6px;
+  padding: 5px 6px;
+}
+
+list.boxed-list > row.entry > box.header > .editable-area > text {
+  margin-top: 12px;
 }
 
 .note-frame {
