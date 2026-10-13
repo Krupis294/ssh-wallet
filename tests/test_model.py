@@ -46,18 +46,18 @@ class HostValidationTest(unittest.TestCase):
         for port, valid in [(0, False), (1, True), (22, True), (65535, True), (65536, False)]:
             with self.subTest(port=port):
                 errors = Host(name="nas", host="h", port=port).errors()
-                self.assertEqual(errors, [] if valid else ["Port musí být v rozsahu 1–65535."])
+                self.assertEqual(errors, [] if valid else ["Port musí být v rozsahu 1-65535."])
 
 
 class HostSubtitleTest(unittest.TestCase):
-    def test_user_and_default_port(self):
-        self.assertEqual(Host(name="m", host="192.168.1.1", user="admin").subtitle(), "admin@192.168.1.1")
+    def test_default_port_is_shown_too(self):
+        self.assertEqual(Host(name="m", host="192.168.1.1", user="admin").subtitle(), "admin@192.168.1.1:22")
 
-    def test_non_default_port_is_shown(self):
+    def test_custom_port(self):
         self.assertEqual(Host(name="n", host="nas", user="kuba", port=2222).subtitle(), "kuba@nas:2222")
 
     def test_without_user(self):
-        self.assertEqual(Host(name="n", host="nas").subtitle(), "nas")
+        self.assertEqual(Host(name="n", host="nas").subtitle(), "nas:22")
 
 
 class HostMatchesTest(unittest.TestCase):

@@ -36,7 +36,7 @@ class Host:
         if self.user.startswith("-"):
             errors.append("Username nesmí začínat pomlčkou.")
         if not 1 <= self.port <= 65535:
-            errors.append("Port musí být v rozsahu 1–65535.")
+            errors.append("Port musí být v rozsahu 1-65535.")
         return errors
 
     def destination(self) -> str:
@@ -44,8 +44,6 @@ class Host:
         return f"{self.user}@{self.host}" if self.user else self.host
 
     def subtitle(self) -> str:
-        if self.port == DEFAULT_PORT:
-            return self.destination()
         return f"{self.destination()}:{self.port}"
 
     def matches(self, query: str) -> bool:

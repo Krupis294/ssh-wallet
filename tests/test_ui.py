@@ -141,5 +141,65 @@ class HostDialogTest(unittest.TestCase):
         self.assertEqual(self.saved[0][2], True)
 
 
+
+def find_widgets(widget, predicate) -> list:
+    found = []
+    if predicate(widget):
+        found.append(widget)
+    child = widget.get_first_child()
+    while child is not None:
+        found += find_widgets(child, predicate)
+        child = child.get_next_sibling()
+    return found
+
+
+@unittest.skipUnless(HAS_DISPLAY, "needs a display")
+class StyleTest(unittest.TestCase):
+    def test_stylesheet_parses_without_errors(self):
+        from ssh_wallet.ui.style import STYLE_PATH
+
+        provider = Gtk.CssProvider()
+        errors = []
+        provider.connect("parsing-error", lambda _p, section, error:
+                         errors.append(f"{section.to_string()}: {error.message}"))
+        provider.load_from_path(str(STYLE_PATH))
+
+        self.assertEqual(errors, [])
+
+
+@unittest.skipUnless(HAS_DISPLAY, "needs a display")
+class HostRowTest(unittest.TestCase):
+    def make_row(self, host, has_password=False):
+        from ssh_wallet.ui.window import HostRow
+
+        self.edited, self.connected = [], []
+        return HostRow(host, has_password, on_edit=self.edited.append, on_connect=self.connected.append)
+
+    def badges(self, row) -> list[str]:
+        return [w.get_label() for w in find_widgets(
+            row, lambda w: isinstance(w, Gtk.Label) and w.has_css_class("badge"))]
+
+    def button(self, row, label):
+        [button] = find_widgets(row, lambda w: isinstance(w, Gtk.Button) and w.get_label() == label)
+        return button
+
+    def test_badges_for_password_and_key(self):
+        row = self.make_row(Host(name="n", host="h", key_path="~/.ssh/k"), has_password=True)
+
+        self.assertEqual(self.badges(row), ["pw", "key"])
+
+    def test_plain_host_has_no_badges(self):
+        self.assertEqual(self.badges(self.make_row(Host(name="n", host="h"))), [])
+
+    def test_row_buttons_edit_and_connect_their_host(self):
+        host = Host(name="n", host="h")
+        row = self.make_row(host)
+
+        self.button(row, "upravit").emit("clicked")
+        self.button(row, "připojit").emit("clicked")
+
+        self.assertEqual((self.edited, self.connected), ([host], [host]))
+
+
 if __name__ == "__main__":
     unittest.main()

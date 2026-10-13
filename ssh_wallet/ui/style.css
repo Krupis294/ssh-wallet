@@ -1,0 +1,202 @@
+/*
+ * SSH Wallet: dark "terminal" look matched to the kitty setup
+ * (FantasqueSansM Nerd Font Mono, near-black background, green accent from
+ * the kitty palette). Stock widgets follow through libadwaita's CSS variables.
+ *
+ * Shape rule: controls (buttons, entries, tags, lists) use --sw-radius (4px),
+ * surfaces (window, dialogs) use --window-radius (8px).
+ */
+
+:root {
+  --sw-surface: #161818;
+  --sw-surface-hover: #1b1e1e;
+  --sw-line: #262a2a;
+  --sw-dim: #8a918f;
+  --sw-radius: 4px;
+
+  --window-bg-color: #0f1010;
+  --window-fg-color: #dddddd;
+  --view-bg-color: #0f1010;
+  --view-fg-color: #dddddd;
+  --headerbar-bg-color: #0f1010;
+  --headerbar-fg-color: #dddddd;
+  --headerbar-backdrop-color: #0f1010;
+  --headerbar-border-color: #262a2a;
+  --headerbar-shade-color: #262a2a;
+  --card-bg-color: #161818;
+  --card-fg-color: #dddddd;
+  --dialog-bg-color: #0f1010;
+  --dialog-fg-color: #dddddd;
+  --popover-bg-color: #161818;
+  --popover-fg-color: #dddddd;
+  --accent-bg-color: #87d5a2;
+  --accent-fg-color: #0f1010;
+  --accent-color: #87d5a2;
+  --border-color: #262a2a;
+  --window-radius: 8px;
+}
+
+window {
+  font-family: "FantasqueSansM Nerd Font Mono", "Fira Code", monospace;
+  font-size: 12pt;
+}
+
+/* Shape: one radius for every control. */
+button,
+button.pill,
+entry,
+spinbutton,
+toast,
+list.boxed-list {
+  border-radius: var(--sw-radius);
+}
+
+/* -- header ------------------------------------------------------------ */
+
+.app-title {
+  font-weight: bold;
+}
+
+/* -- prompt (search) ---------------------------------------------------- */
+
+.prompt-bar {
+  padding: 4px 16px 10px 16px;
+  border-bottom: 1px solid var(--sw-line);
+}
+
+.prompt {
+  color: var(--accent-color);
+  font-weight: bold;
+  margin-right: 8px;
+}
+
+.prompt-bar entry.search,
+.prompt-bar entry.search:focus-within {
+  background: none;
+  box-shadow: none;
+  outline: none;
+  padding: 0;
+  min-height: 30px;
+}
+
+/* The search glyph is replaced by the ">" prompt. */
+.prompt-bar entry.search > image:first-child {
+  -gtk-icon-size: 0;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+}
+
+/* -- host list ----------------------------------------------------------- */
+
+list.host-list {
+  background: none;
+}
+
+list.host-list > row {
+  padding: 8px 12px 8px 13px;
+  border-left: 3px solid transparent;
+  border-bottom: 1px solid var(--sw-line);
+  border-radius: 0;
+  background: none;
+  transition: background-color 150ms ease-out, border-color 150ms ease-out;
+}
+
+list.host-list > row:hover {
+  background-color: var(--sw-surface-hover);
+}
+
+list.host-list > row:selected {
+  background-color: var(--sw-surface);
+  border-left-color: var(--accent-color);
+}
+
+list.host-list > row label.title {
+  font-weight: bold;
+}
+
+list.host-list > row label.subtitle {
+  color: var(--sw-dim);
+  opacity: 1;
+  font-size: 11pt;
+}
+
+.badge {
+  color: var(--sw-dim);
+  border: 1px solid var(--sw-line);
+  border-radius: var(--sw-radius);
+  padding: 0 6px;
+  font-size: 10pt;
+}
+
+/* Row actions stay out of the way until the row is hovered or selected. */
+button.row-action {
+  opacity: 0;
+  min-height: 26px;
+  padding: 0 10px;
+  color: var(--sw-dim);
+  transition: opacity 150ms ease-out, background-color 150ms ease-out;
+}
+
+list.host-list > row:hover button.row-action,
+list.host-list > row:selected button.row-action,
+button.row-action:focus-visible {
+  opacity: 1;
+}
+
+button.row-action:hover {
+  color: var(--window-fg-color);
+  background-color: var(--sw-line);
+}
+
+button.row-action.connect {
+  color: var(--accent-color);
+}
+
+button.row-action.connect:hover {
+  background-color: color-mix(in srgb, var(--accent-color) 15%, transparent);
+}
+
+/* -- status pages and hints --------------------------------------------- */
+
+statuspage .title {
+  font-size: 15pt;
+}
+
+statuspage .description {
+  color: var(--sw-dim);
+}
+
+.hints {
+  padding: 6px 16px;
+  border-top: 1px solid var(--sw-line);
+  color: var(--sw-dim);
+  font-size: 10pt;
+}
+
+.hints .key {
+  color: var(--window-fg-color);
+}
+
+/* -- form ------------------------------------------------------------------ */
+
+list.boxed-list {
+  background-color: var(--sw-surface);
+  box-shadow: none;
+  border: 1px solid var(--sw-line);
+}
+
+list.boxed-list > row {
+  border-color: var(--sw-line);
+}
+
+.note-frame {
+  border: 1px solid var(--sw-line);
+  border-radius: var(--sw-radius);
+  background-color: var(--sw-surface);
+}
+
+.note-frame textview,
+.note-frame textview text {
+  background: none;
+}

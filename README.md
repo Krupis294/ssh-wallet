@@ -40,6 +40,13 @@ nepřesouvej (případně spusť `install.sh` znovu).
 | Esc      | vymazat hledání               |
 | Ctrl+Q   | konec                         |
 
+## Vzhled
+
+Tmavý terminálový styl sladěný s kitty: písmo FantasqueSansM Nerd Font Mono
+(záložně Fira Code / monospace), téměř černé pozadí a jediný zelený akcent.
+Barvy, písmo i zaoblení jsou v [`ssh_wallet/ui/style.css`](ssh_wallet/ui/style.css)
+(proměnné nahoře v `:root`), takže se dají snadno přebarvit.
+
 ## Jak to funguje
 
 - Hosty: `~/.config/ssh-wallet/hosts.json` (práva `0600`, atomický zápis).

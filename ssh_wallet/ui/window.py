@@ -23,30 +23,48 @@ class HostRow(Adw.ActionRow):
         if host.note:
             self.set_tooltip_text(host.note)
         if has_password:
-            self.add_suffix(Gtk.Image(icon_name="channel-secure-symbolic",
-                                      tooltip_text="Heslo uloženo v keyringu"))
-        edit = Gtk.Button(icon_name="document-edit-symbolic", valign=Gtk.Align.CENTER,
-                          tooltip_text="Upravit (Ctrl+E)", css_classes=["flat"])
+            self.add_suffix(_badge("pw", "Heslo uloženo v keyringu"))
+        if host.key_path:
+            self.add_suffix(_badge("key", f"Klíč {host.key_path}"))
+        edit = Gtk.Button(label="upravit", valign=Gtk.Align.CENTER, tooltip_text="Ctrl+E",
+                          css_classes=["flat", "row-action"])
         edit.connect("clicked", lambda *_: on_edit(host))
-        connect = Gtk.Button(icon_name="media-playback-start-symbolic", valign=Gtk.Align.CENTER,
-                             tooltip_text="Připojit (Enter)", css_classes=["flat"])
+        connect = Gtk.Button(label="připojit", valign=Gtk.Align.CENTER, tooltip_text="Enter",
+                             css_classes=["flat", "row-action", "connect"])
         connect.connect("clicked", lambda *_: on_connect(host))
         self.add_suffix(edit)
         self.add_suffix(connect)
 
 
+def _badge(text: str, tooltip: str) -> Gtk.Label:
+    return Gtk.Label(label=text, valign=Gtk.Align.CENTER, tooltip_text=tooltip,
+                     css_classes=["badge"])
+
+
+def _hints() -> Gtk.Box:
+    """Bottom status line with the main keyboard shortcuts."""
+    box = Gtk.Box(spacing=20, css_classes=["hints"])
+    for key, action in [("Enter", "připojit"), ("Ctrl+N", "nový"), ("Ctrl+E", "upravit"),
+                        ("Esc", "vymazat hledání")]:
+        pair = Gtk.Box(spacing=6)
+        pair.append(Gtk.Label(label=key, css_classes=["key"]))
+        pair.append(Gtk.Label(label=action))
+        box.append(pair)
+    return box
+
+
 class MainWindow(Adw.ApplicationWindow):
     def __init__(self, wallet: Wallet, **kwargs):
-        super().__init__(title="SSH Wallet", default_width=560, default_height=640, **kwargs)
+        super().__init__(title="ssh-wallet", default_width=600, default_height=640, **kwargs)
         self.wallet = wallet
         self._rows: list[HostRow] = []
 
-        add = Gtk.Button(icon_name="list-add-symbolic", tooltip_text="Přidat host (Ctrl+N)",
-                         action_name="win.new-host")
-        header = Adw.HeaderBar()
-        header.pack_start(add)
+        add = Gtk.Button(label="+ nový", tooltip_text="Ctrl+N", action_name="win.new-host",
+                         css_classes=["flat"])
+        header = Adw.HeaderBar(title_widget=Gtk.Label(label="ssh-wallet", css_classes=["app-title"]))
+        header.pack_end(add)
 
-        self.search_entry = Gtk.SearchEntry(placeholder_text="Hledat…", hexpand=True)
+        self.search_entry = Gtk.SearchEntry(placeholder_text="hledat", hexpand=True)
         self.search_entry.connect("changed", lambda *_: self._update_view())
         self.search_entry.connect("activate", lambda *_: self.connect_selected())
         self.search_entry.connect("stop-search", lambda entry: entry.set_text(""))
@@ -54,27 +72,27 @@ class MainWindow(Adw.ApplicationWindow):
         search_keys.connect("key-pressed", self._on_search_key)
         self.search_entry.add_controller(search_keys)
         self.search_entry.set_key_capture_widget(self)
+        prompt_bar = Gtk.Box(css_classes=["prompt-bar"])
+        prompt_bar.append(Gtk.Label(label=">", css_classes=["prompt"]))
+        prompt_bar.append(self.search_entry)
 
         self.listbox = Gtk.ListBox(selection_mode=Gtk.SelectionMode.SINGLE,
-                                   css_classes=["boxed-list"], valign=Gtk.Align.START)
+                                   css_classes=["host-list"], valign=Gtk.Align.START)
         self.listbox.set_filter_func(lambda row: row.host.matches(self.search_entry.get_text()))
         self.listbox.connect("row-activated", lambda _, row: self._connect(row.host))
         list_keys = Gtk.EventControllerKey()
         list_keys.connect("key-pressed", self._on_list_key)
         self.listbox.add_controller(list_keys)
 
-        list_page = Gtk.ScrolledWindow(
-            vexpand=True, hscrollbar_policy=Gtk.PolicyType.NEVER,
-            child=Adw.Clamp(maximum_size=720, child=self.listbox,
-                            margin_top=6, margin_bottom=12, margin_start=12, margin_end=12),
-        )
+        list_page = Gtk.ScrolledWindow(vexpand=True, hscrollbar_policy=Gtk.PolicyType.NEVER,
+                                       child=self.listbox)
         empty_page = Adw.StatusPage(
-            icon_name="network-server-symbolic", title="Žádné hosty",
-            description="Přidej první SSH připojení.",
-            child=Gtk.Button(label="Přidat host", action_name="win.new-host",
-                             halign=Gtk.Align.CENTER, css_classes=["pill", "suggested-action"]),
+            title="žádné hosty", description="Ctrl+N přidá první.",
+            child=Gtk.Button(label="+ nový host", action_name="win.new-host",
+                             halign=Gtk.Align.CENTER, css_classes=["suggested-action"]),
         )
-        no_results_page = Adw.StatusPage(icon_name="system-search-symbolic", title="Nic nenalezeno")
+        no_results_page = Adw.StatusPage(title="nic nenalezeno",
+                                         description="Esc vymaže hledání.")
 
         self.stack = Gtk.Stack(vexpand=True)
         self.stack.add_named(list_page, "list")
@@ -82,12 +100,12 @@ class MainWindow(Adw.ApplicationWindow):
         self.stack.add_named(no_results_page, "no-results")
 
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        content.append(Adw.Clamp(maximum_size=720, child=self.search_entry,
-                                 margin_top=12, margin_bottom=6, margin_start=12, margin_end=12))
+        content.append(prompt_bar)
         content.append(self.stack)
         self.toast_overlay = Adw.ToastOverlay(child=content)
         toolbar = Adw.ToolbarView(content=self.toast_overlay)
         toolbar.add_top_bar(header)
+        toolbar.add_bottom_bar(_hints())
         self.set_content(toolbar)
 
         self._add_action("new-host", lambda: self.open_host_dialog(None))
@@ -144,10 +162,10 @@ class MainWindow(Adw.ApplicationWindow):
         dialog.present(self)
 
     def confirm_delete(self, host: Host) -> None:
-        dialog = Adw.AlertDialog(heading=f"Smazat „{host.name}“?",
+        dialog = Adw.AlertDialog(heading=f"smazat {host.name}?",
                                  body="Položka i uložené heslo budou odstraněny.")
-        dialog.add_response("cancel", "Zrušit")
-        dialog.add_response("delete", "Smazat")
+        dialog.add_response("cancel", "zrušit")
+        dialog.add_response("delete", "smazat")
         dialog.set_response_appearance("delete", Adw.ResponseAppearance.DESTRUCTIVE)
         dialog.set_default_response("cancel")
         dialog.set_close_response("cancel")
@@ -229,4 +247,4 @@ class MainWindow(Adw.ApplicationWindow):
             self.toast(str(e), timeout=6)
             return
         self.reload()
-        self.toast(f"„{host.name}“ smazán.")
+        self.toast(f"{host.name} smazán.")

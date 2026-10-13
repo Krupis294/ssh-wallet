@@ -8,6 +8,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gio  # noqa: E402
 
+from ssh_wallet.ui.style import apply_style  # noqa: E402
 from ssh_wallet.ui.window import MainWindow  # noqa: E402
 
 APP_ID = "io.github.krupis294.SshWallet"
@@ -25,6 +26,10 @@ class SshWalletApp(Adw.Application):
         self.set_accels_for_action("win.new-host", ["<Control>n"])
         self.set_accels_for_action("win.edit-host", ["<Control>e"])
         self.set_accels_for_action("win.focus-search", ["<Control>f"])
+
+    def do_startup(self):
+        Adw.Application.do_startup(self)
+        apply_style()
 
     def do_activate(self):
         window = self.props.active_window
