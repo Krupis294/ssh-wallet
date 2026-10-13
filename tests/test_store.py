@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from ssh_wallet.model import Host
+from ssh_wallet.model import Forward, Host
 from ssh_wallet.store import HostStore
 
 
@@ -46,8 +46,29 @@ class HostStoreTest(unittest.TestCase):
         self.assertEqual(json.loads(self.path.read_text()), {
             "version": 1,
             "hosts": [{"id": "id-1", "name": "m", "host": "h", "port": 22,
-                       "user": "", "key_path": "", "note": ""}],
+                       "user": "", "key_path": "", "note": "", "jump_id": "", "forwards": []}],
         })
+
+    def test_jump_and_forwards_load_back(self):
+        hosts = [Host(name="pks2", host="2001:db8::1", id="id-2", jump_id="id-1",
+                      forwards=[Forward("L", 5901, "localhost", 5901), Forward("R", 8080, "fe80::1", 80)])]
+
+        self.store.save(hosts)
+
+        self.assertEqual(HostStore(self.path).load().hosts, [
+            Host(name="pks2", host="2001:db8::1", id="id-2", jump_id="id-1",
+                 forwards=[Forward("L", 5901, "localhost", 5901), Forward("R", 8080, "fe80::1", 80)]),
+        ])
+
+    def test_file_from_before_jump_and_forwards_still_loads(self):
+        self.dir.mkdir(parents=True)
+        self.path.write_text('{"version": 1, "hosts": [{"id": "x", "name": "n", "host": "h", "port": 22,'
+                             ' "user": "", "key_path": "", "note": ""}]}')
+
+        result = self.store.load()
+
+        self.assertEqual(result.hosts, [Host(name="n", host="h", id="x")])
+        self.assertIsNone(result.backup_path)
 
     def test_saved_file_is_private(self):
         self.store.save([Host(name="m", host="h")])
@@ -86,6 +107,13 @@ class HostStoreTest(unittest.TestCase):
         self.assert_backed_up(
             '{"version": 1, "hosts": [{"id": "x", "name": "n", "host": "h", "port": "22",'
             ' "user": "", "key_path": "", "note": ""}]}'
+        )
+
+    def test_forward_with_wrong_type_is_backed_up(self):
+        self.assert_backed_up(
+            '{"version": 1, "hosts": [{"id": "x", "name": "n", "host": "h", "port": 22,'
+            ' "user": "", "key_path": "", "note": "",'
+            ' "forwards": [{"kind": "L", "port": "5901", "dest_host": "localhost", "dest_port": 5901}]}]}'
         )
 
 
