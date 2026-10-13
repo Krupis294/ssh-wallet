@@ -1,0 +1,10 @@
+#!/usr/bin/python3
+# Quick host picker in rofi; see ssh_wallet/rofi.py.
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from ssh_wallet.rofi import main  # noqa: E402
+
+sys.exit(main())

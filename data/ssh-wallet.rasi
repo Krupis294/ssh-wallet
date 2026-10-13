@@ -1,0 +1,101 @@
+/*
+ * ssh-wallet rofi theme: same look as the GTK app (dark terminal style,
+ * kitty's FantasqueSansM Nerd Font Mono, one green accent).
+ * Use `ssh-wallet-rofi --system-theme` to get your regular rofi theme instead.
+ */
+
+configuration {
+    show-icons: false;
+}
+
+* {
+    sw-bg:      #0f1010;
+    sw-surface: #161818;
+    sw-line:    #262a2a;
+    sw-fg:      #dddddd;
+    sw-dim:     #8a918f;
+    sw-accent:  #87d5a2;
+
+    font:             "FantasqueSansM Nerd Font Mono 13";
+    background-color: transparent;
+    text-color:       @sw-fg;
+}
+
+window {
+    width:            680px;
+    location:         center;
+    anchor:           center;
+    border:           1px;
+    border-color:     @sw-line;
+    border-radius:    8px;
+    background-color: @sw-bg;
+}
+
+mainbox {
+    children: [ inputbar, message, listview ];
+    spacing:  0;
+    padding:  0;
+}
+
+inputbar {
+    children:     [ textbox-prompt-colon, entry ];
+    padding:      12px 16px;
+    border:       0px 0px 1px 0px;
+    border-color: @sw-line;
+}
+
+textbox-prompt-colon {
+    str:        ">";
+    expand:     false;
+    margin:     0px 10px 0px 0px;
+    text-color: @sw-accent;
+}
+
+entry {
+    placeholder:       "hledat";
+    placeholder-color: @sw-dim;
+    cursor:            text;
+}
+
+message {
+    padding:      8px 16px;
+    border:       0px 0px 1px 0px;
+    border-color: @sw-line;
+}
+
+textbox {
+    text-color: @sw-dim;
+}
+
+listview {
+    lines:        8;
+    fixed-height: false;
+    scrollbar:    false;
+    spacing:      0;
+    padding:      4px 0px;
+}
+
+element {
+    padding:      8px 16px 8px 13px;
+    border:       0px 0px 0px 3px;
+    border-color: transparent;
+    cursor:       pointer;
+}
+
+element normal.normal,
+element alternate.normal {
+    background-color: transparent;
+    text-color:       @sw-fg;
+}
+
+element selected.normal {
+    background-color: @sw-surface;
+    border-color:     @sw-accent;
+    text-color:       @sw-fg;
+}
+
+element-text {
+    text-color: inherit;
+    /* Matches are found in the hidden search text, so don't mark characters. */
+    highlight:  none;
+}

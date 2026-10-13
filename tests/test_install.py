@@ -16,8 +16,9 @@ class InstallScriptTest(unittest.TestCase):
             subprocess.run(["sh", str(ROOT / "install.sh")], env=env, check=True,
                            capture_output=True)
 
-            link = Path(home, ".local/bin/ssh-wallet")
-            self.assertEqual(link.resolve(), ROOT / "bin/ssh-wallet")
+            for name in ("ssh-wallet", "ssh-wallet-rofi"):
+                link = Path(home, ".local/bin", name)
+                self.assertEqual(link.resolve(), ROOT / "bin" / name)
             desktop = Path(home, ".local/share/applications/io.github.krupis294.SshWallet.desktop")
             self.assertIn(f"Exec={ROOT}/bin/ssh-wallet\n", desktop.read_text())
 
