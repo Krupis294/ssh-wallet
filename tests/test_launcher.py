@@ -65,6 +65,56 @@ class BuildCommandTest(unittest.TestCase):
         self.assertEqual(ssh_part(command)[-1], "u$(id)@h;id")
 
 
+
+class JumpTest(unittest.TestCase):
+    target = Host(name="pks2", host="2001:db8::1", user="student", id="id-2", jump_id="id-1")
+
+    def test_jump_goes_through_proxy_command_before_destination(self):
+        jump = Host(name="bastion", host="bastion.example", user="admin", port=2222, id="id-1")
+
+        command = build_command(self.target, has_password=False, askpass_path=ASKPASS, jump=jump)
+
+        self.assertEqual(ssh_part(command), [
+            "ssh", "-p", "22",
+            "-o", "ProxyCommand=ssh -W '[%h]:%p' -p 2222 -- admin@bastion.example",
+            "--", "student@2001:db8::1",
+        ])
+
+    def test_jump_key_is_quoted_and_percent_escaped(self):
+        jump = Host(name="b", host="b", user="u$(id)", key_path="~/.ssh/my key%1", id="id-1")
+
+        command = build_command(self.target, has_password=False, askpass_path=ASKPASS, jump=jump)
+
+        key = str(Path.home() / ".ssh/my key%%1")
+        self.assertIn(
+            f"ProxyCommand=ssh -W '[%h]:%p' -p 22 -i '{key}' -o IdentitiesOnly=yes -- 'u$(id)@b'",
+            ssh_part(command),
+        )
+
+    def test_jump_password_is_announced_to_askpass(self):
+        jump = Host(name="b", host="bastion.example", id="id-1")
+
+        command = build_command(self.target, has_password=True, askpass_path=ASKPASS,
+                                jump=jump, jump_has_password=True)
+
+        self.assertEqual(command.env, {
+            "SSH_ASKPASS": "/opt/wallet/bin/ssh-wallet-askpass",
+            "SSH_ASKPASS_REQUIRE": "force",
+            "SSH_WALLET_ID": "id-2",
+            "SSH_WALLET_JUMP_ID": "id-1",
+            "SSH_WALLET_JUMP_HOST": "bastion.example",
+        })
+
+    def test_only_jump_has_password(self):
+        jump = Host(name="b", host="bastion.example", id="id-1")
+
+        command = build_command(self.target, has_password=False, askpass_path=ASKPASS,
+                                jump=jump, jump_has_password=True)
+
+        self.assertNotIn("SSH_WALLET_ID", command.env)
+        self.assertEqual(command.env["SSH_WALLET_JUMP_ID"], "id-1")
+
+
 class WrapperTest(unittest.TestCase):
     def run_wrapper(self, *cmd: str, stdin: str = "") -> subprocess.CompletedProcess:
         return subprocess.run(["sh", "-c", WRAPPER, "sh", *cmd],
