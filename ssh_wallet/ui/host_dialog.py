@@ -10,7 +10,7 @@ from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
 from ssh_wallet.model import DEFAULT_PORT, Host  # noqa: E402
 
-NO_KEY_SUBTITLE = "výchozí klíče ssh a ~/.ssh/config"
+NO_KEY_SUBTITLE = "Výchozí klíče ssh a ~/.ssh/config"
 
 
 class HostDialog(Adw.Dialog):
@@ -20,29 +20,29 @@ class HostDialog(Adw.Dialog):
     """
 
     def __init__(self, host: Host | None, has_password: bool, on_save, on_delete=None):
-        super().__init__(title="upravit host" if host else "nový host", content_width=480)
+        super().__init__(title="Upravit host" if host else "Nový host", content_width=600)
         self._original = host
         self._on_save = on_save
         self._key_path = host.key_path if host else ""
 
-        cancel = Gtk.Button(label="zrušit")
+        cancel = Gtk.Button(label="Zrušit")
         cancel.connect("clicked", lambda *_: self.close())
-        self.save_button = Gtk.Button(label="uložit", css_classes=["suggested-action"])
+        self.save_button = Gtk.Button(label="Uložit", css_classes=["suggested-action"])
         self.save_button.connect("clicked", self._save)
         header = Adw.HeaderBar(show_start_title_buttons=False, show_end_title_buttons=False)
         header.pack_start(cancel)
         header.pack_end(self.save_button)
 
-        self.name_row = Adw.EntryRow(title="název")
-        self.host_row = Adw.EntryRow(title="host (IP adresa nebo jméno)")
+        self.name_row = Adw.EntryRow(title="Název")
+        self.host_row = Adw.EntryRow(title="Host (IP adresa nebo jméno)")
         self.port_row = Adw.SpinRow.new_with_range(1, 65535, 1)
-        self.port_row.set_title("port")
+        self.port_row.set_title("Port")
         self.port_row.set_value(DEFAULT_PORT)
-        self.user_row = Adw.EntryRow(title="username")
+        self.user_row = Adw.EntryRow(title="Username")
         self.password_row = Adw.PasswordEntryRow(
-            title="nové heslo (prázdné = ponechat uložené)" if has_password else "heslo (nepovinné)"
+            title="Nové heslo (prázdné = ponechat uložené)" if has_password else "Heslo (nepovinné)"
         )
-        self.remove_password_row = Adw.SwitchRow(title="odebrat uložené heslo", visible=has_password)
+        self.remove_password_row = Adw.SwitchRow(title="Odebrat uložené heslo", visible=has_password)
         self.remove_password_row.connect(
             "notify::active",
             lambda row, _: self.password_row.set_sensitive(not row.get_active()),
@@ -58,14 +58,14 @@ class HostDialog(Adw.Dialog):
                                       bottom_margin=8, left_margin=8, right_margin=8)
         note_scroll = Gtk.ScrolledWindow(child=self.note_view, min_content_height=80,
                                          hscrollbar_policy=Gtk.PolicyType.NEVER)
-        note_group = Adw.PreferencesGroup(title="poznámka")
+        note_group = Adw.PreferencesGroup(title="Poznámka")
         note_group.add(Gtk.Frame(child=note_scroll, css_classes=["note-frame"]))
 
         page = Adw.PreferencesPage()
         page.add(group)
         page.add(note_group)
         if host and on_delete:
-            delete = Gtk.Button(label="smazat položku", halign=Gtk.Align.CENTER,
+            delete = Gtk.Button(label="Smazat položku", halign=Gtk.Align.CENTER,
                                 css_classes=["destructive-action"])
             delete.connect("clicked", lambda *_: (self.close(), on_delete(host)))
             delete_group = Adw.PreferencesGroup()
@@ -94,7 +94,7 @@ class HostDialog(Adw.Dialog):
         self.set_focus(self.name_row)
 
     def _build_key_row(self) -> Adw.ActionRow:
-        row = Adw.ActionRow(title="ssh klíč")
+        row = Adw.ActionRow(title="SSH klíč")
         choose = Gtk.Button(icon_name="document-open-symbolic", valign=Gtk.Align.CENTER,
                             tooltip_text="Vybrat soubor s klíčem", css_classes=["flat"])
         choose.connect("clicked", self._choose_key)

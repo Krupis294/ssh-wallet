@@ -38,7 +38,7 @@
 
 window {
   font-family: "FantasqueSansM Nerd Font Mono", "Fira Code", monospace;
-  font-size: 12pt;
+  font-size: 14pt;
 }
 
 /* Shape: one radius for every control. */
@@ -118,7 +118,7 @@ list.host-list > row label.title {
 list.host-list > row label.subtitle {
   color: var(--sw-dim);
   opacity: 1;
-  font-size: 11pt;
+  font-size: 13pt;
 }
 
 .badge {
@@ -126,13 +126,13 @@ list.host-list > row label.subtitle {
   border: 1px solid var(--sw-line);
   border-radius: var(--sw-radius);
   padding: 0 6px;
-  font-size: 10pt;
+  font-size: 12pt;
 }
 
 /* Row actions stay out of the way until the row is hovered or selected. */
 button.row-action {
   opacity: 0;
-  min-height: 26px;
+  min-height: 30px;
   padding: 0 10px;
   color: var(--sw-dim);
   transition: opacity 150ms ease-out, background-color 150ms ease-out;
@@ -160,7 +160,7 @@ button.row-action.connect:hover {
 /* -- status pages and hints --------------------------------------------- */
 
 statuspage .title {
-  font-size: 15pt;
+  font-size: 18pt;
 }
 
 statuspage .description {
@@ -171,7 +171,7 @@ statuspage .description {
   padding: 6px 16px;
   border-top: 1px solid var(--sw-line);
   color: var(--sw-dim);
-  font-size: 10pt;
+  font-size: 12pt;
 }
 
 .hints .key {

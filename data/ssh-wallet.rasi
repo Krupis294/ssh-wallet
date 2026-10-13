@@ -16,13 +16,13 @@ configuration {
     sw-dim:     #8a918f;
     sw-accent:  #87d5a2;
 
-    font:             "FantasqueSansM Nerd Font Mono 13";
+    font:             "FantasqueSansM Nerd Font Mono 16";
     background-color: transparent;
     text-color:       @sw-fg;
 }
 
 window {
-    width:            680px;
+    width:            860px;
     location:         center;
     anchor:           center;
     border:           1px;
@@ -52,7 +52,7 @@ textbox-prompt-colon {
 }
 
 entry {
-    placeholder:       "hledat";
+    placeholder:       "Hledat";
     placeholder-color: @sw-dim;
     cursor:            text;
 }

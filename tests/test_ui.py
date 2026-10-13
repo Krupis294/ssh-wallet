@@ -186,7 +186,7 @@ class HostRowTest(unittest.TestCase):
     def test_badges_for_password_and_key(self):
         row = self.make_row(Host(name="n", host="h", key_path="~/.ssh/k"), has_password=True)
 
-        self.assertEqual(self.badges(row), ["pw", "key"])
+        self.assertEqual(self.badges(row), ["Heslo", "Klíč"])
 
     def test_plain_host_has_no_badges(self):
         self.assertEqual(self.badges(self.make_row(Host(name="n", host="h"))), [])
@@ -195,8 +195,8 @@ class HostRowTest(unittest.TestCase):
         host = Host(name="n", host="h")
         row = self.make_row(host)
 
-        self.button(row, "upravit").emit("clicked")
-        self.button(row, "připojit").emit("clicked")
+        self.button(row, "Upravit").emit("clicked")
+        self.button(row, "Připojit").emit("clicked")
 
         self.assertEqual((self.edited, self.connected), ([host], [host]))
 

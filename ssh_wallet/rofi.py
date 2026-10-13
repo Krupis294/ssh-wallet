@@ -18,7 +18,7 @@ from ssh_wallet.model import Host
 ROOT = Path(__file__).resolve().parent.parent
 THEME_PATH = ROOT / "data" / "ssh-wallet.rasi"
 GUI_PATH = ROOT / "bin" / "ssh-wallet"
-GUI_ENTRY = "otevřít ssh-wallet"
+GUI_ENTRY = "Otevřít SSH Wallet"
 
 _CONTROL = re.compile(r"[\n\r\0\x1f]+")
 
@@ -38,7 +38,7 @@ def host_rows(hosts: list[Host], has_password) -> list[Row]:
     width = max((len(h.name) for h in hosts), default=0)
     rows = []
     for host in hosts:
-        tags = [t for t, on in (("pw", has_password(host.id)), ("key", bool(host.key_path))) if on]
+        tags = [t for t, on in (("Heslo", has_password(host.id)), ("Klíč", bool(host.key_path))) if on]
         display = (f"<b>{html.escape(host.name, quote=False)}</b>"
                    + " " * (width - len(host.name) + 2) + _dim(host.subtitle()))
         if tags:
@@ -64,7 +64,7 @@ def _clean(text: str) -> str:
 
 
 def rofi_command(theme: Path | None, mesg: str | None = None) -> list[str]:
-    argv = ["rofi", "-dmenu", "-i", "-markup-rows", "-no-custom", "-format", "i", "-p", "ssh"]
+    argv = ["rofi", "-dmenu", "-i", "-markup-rows", "-no-custom", "-format", "i", "-p", "SSH"]
     if theme:
         argv += ["-theme", str(theme)]
     if mesg:

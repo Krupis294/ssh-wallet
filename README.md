@@ -44,7 +44,7 @@ nepřesouvej (případně spusť `install.sh` znovu).
 
 `ssh-wallet-rofi` je rychlý výběr hostu přes rofi: napíšeš kus názvu, adresy
 nebo poznámky, Enter a otevře se kitty se ssh (hesla a askpass fungují stejně
-jako v GTK aplikaci). Poslední položka `otevřít ssh-wallet` spustí GTK okno
+jako v GTK aplikaci). Poslední položka `Otevřít SSH Wallet` spustí GTK okno
 pro přidání a úpravy.
 
 ```sh

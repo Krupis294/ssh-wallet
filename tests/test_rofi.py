@@ -46,7 +46,7 @@ class HostRowsTest(unittest.TestCase):
 
         self.assertEqual([visible_text(r.display) for r in rows], [
             "nas       kuba@10.0.0.6:22",
-            "mikrotik  admin@192.168.122.19:22  pw key",
+            "mikrotik  admin@192.168.122.19:22  Heslo Klíč",
         ])
 
     def test_markup_in_names_is_escaped(self):
@@ -77,7 +77,7 @@ class RofiCommandTest(unittest.TestCase):
     def test_own_theme(self):
         self.assertEqual(rofi_command(Path("/t.rasi")), [
             "rofi", "-dmenu", "-i", "-markup-rows", "-no-custom", "-format", "i",
-            "-p", "ssh", "-theme", "/t.rasi",
+            "-p", "SSH", "-theme", "/t.rasi",
         ])
 
     def test_system_theme_passes_no_theme(self):
