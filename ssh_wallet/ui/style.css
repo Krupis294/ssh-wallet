@@ -196,19 +196,21 @@ list.boxed-list > row {
 }
 
 /*
- * Row metrics follow the 14pt text. libadwaita sizes these for ~11pt, so at
- * our size the label and the value end up almost touching each other and the
- * row separators.
+ * Row metrics for the 14pt text. libadwaita sizes rows for ~11pt and gives
+ * them a fixed minimum height, so single-line rows (Port, Heslo) float in the
+ * middle while two-line rows (Název, SSH klíč) fill theirs. Instead every row
+ * gets the same padding above and below its text, so the distance between the
+ * texts of consecutive rows is even whatever the row holds.
  */
 list.boxed-list > row > box.header {
-  min-height: 64px;
+  min-height: 0;
 }
 
-/* Rows with a title above a subtitle (SSH klíč, Odebrat uložené heslo). */
+/* Rows with a title (and subtitle): Port, SSH klíč, Odebrat uložené heslo. */
 list.boxed-list > row > box.header > box.title {
-  margin-top: 10px;
-  margin-bottom: 10px;
-  border-spacing: 5px;
+  margin-top: 17px;
+  margin-bottom: 17px;
+  border-spacing: 8px;
 }
 
 /*
@@ -217,11 +219,11 @@ list.boxed-list > row > box.header > box.title {
  * own font; margin-top on the value is what opens that gap up at 14pt.
  */
 list.boxed-list > row.entry > box.header > .editable-area {
-  padding: 5px 6px;
+  padding: 15px 6px 14px 6px;
 }
 
 list.boxed-list > row.entry > box.header > .editable-area > text {
-  margin-top: 12px;
+  margin-top: 5px;
 }
 
 .note-frame {
