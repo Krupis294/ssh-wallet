@@ -2,7 +2,8 @@
 
 from pathlib import Path
 
-from ssh_wallet import launcher
+from ssh_wallet import launcher, tunnel
+from ssh_wallet.launcher import Command, LaunchError
 from ssh_wallet.model import Host
 from ssh_wallet.store import HostStore
 from ssh_wallet.vault import VaultError
@@ -63,10 +64,33 @@ class Wallet:
         except VaultError as e:
             raise WalletError(f"Položka smazána, ale heslo z keyringu odstranit nešlo: {e}") from e
 
+    def jump_candidates(self, host_id: str | None) -> list[Host]:
+        """Hosts that ``host_id`` may use as its jump server: every other host."""
+        return [h for h in self.hosts if h.id != host_id]
+
     def connect(self, host: Host) -> None:
         """Open a kitty window with ssh to ``host``. Raises launcher.LaunchError."""
-        command = launcher.build_command(host, self.has_password(host.id), self._askpass_path)
-        self._launch(command)
+        jump = self._jump_of(host)
+        self._launch(launcher.build_command(
+            host, self.has_password(host.id), self._askpass_path,
+            jump=jump, jump_has_password=jump is not None and self.has_password(jump.id),
+        ))
+
+    def tunnel_command(self, host: Host) -> Command:
+        """The background ``ssh -N`` for ``host``'s forwards. Raises launcher.LaunchError."""
+        jump = self._jump_of(host)
+        return tunnel.build_tunnel_command(
+            host, self.has_password(host.id), self._askpass_path,
+            jump=jump, jump_has_password=jump is not None and self.has_password(jump.id),
+        )
+
+    def _jump_of(self, host: Host) -> Host | None:
+        if not host.jump_id:
+            return None
+        jump = next((h for h in self._hosts if h.id == host.jump_id), None)
+        if jump is None:
+            raise LaunchError(f"Jump server hostu {host.name} už neexistuje. Vyber jiný v úpravách.")
+        return jump
 
     def _write(self, hosts: list[Host]) -> None:
         try:

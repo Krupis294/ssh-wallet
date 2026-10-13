@@ -2,7 +2,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from ssh_wallet.model import Host
+from ssh_wallet.launcher import LaunchError
+from ssh_wallet.model import Forward, Host
 from ssh_wallet.store import HostStore
 from ssh_wallet.wallet import Wallet, WalletError
 from tests.fakes import FakeVault
@@ -156,6 +157,49 @@ class WalletTest(unittest.TestCase):
         self.wallet.connect(host)
 
         self.assertEqual(self.launch.commands[0].env, {})
+
+
+    def test_connect_goes_through_the_jump_host(self):
+        self.wallet.save_host(Host(name="bastion", host="bastion.example", user="admin", id="id-j"),
+                              password="jump-pw")
+        target = Host(name="pks2", host="10.0.0.6", user="student", id="id-t", jump_id="id-j")
+        self.wallet.save_host(target)
+
+        self.wallet.connect(target)
+
+        [command] = self.launch.commands
+        self.assertIn("ProxyCommand=ssh -W '[%h]:%p' -p 22 -- admin@bastion.example", command.argv)
+        self.assertEqual(command.env["SSH_WALLET_JUMP_ID"], "id-j")
+
+    def test_connect_with_a_deleted_jump_host_fails_clearly(self):
+        target = Host(name="pks2", host="10.0.0.6", id="id-t", jump_id="gone")
+        self.wallet.save_host(target)
+
+        with self.assertRaises(LaunchError) as ctx:
+            self.wallet.connect(target)
+
+        self.assertEqual(str(ctx.exception), "Jump server hostu pks2 už neexistuje. Vyber jiný v úpravách.")
+        self.assertEqual(self.launch.commands, [])
+
+    def test_tunnel_command_uses_forwards_and_jump(self):
+        self.wallet.save_host(Host(name="bastion", host="bastion.example", id="id-j"))
+        target = Host(name="pks2", host="10.0.0.6", id="id-t", jump_id="id-j",
+                      forwards=[Forward("L", 5901, "localhost", 5901)])
+        self.wallet.save_host(target, password="pw")
+
+        command = self.wallet.tunnel_command(target)
+
+        self.assertEqual(command.argv[command.argv.index("-L") + 1], "5901:localhost:5901")
+        self.assertIn("-N", command.argv)
+        self.assertIn("ProxyCommand=ssh -W '[%h]:%p' -p 22 -- bastion.example", command.argv)
+        self.assertEqual(command.env["SSH_WALLET_ID"], "id-t")
+
+    def test_jump_candidates_are_the_other_hosts(self):
+        for name, host_id in [("b", "id-b"), ("A", "id-a"), ("self", "id-s")]:
+            self.wallet.save_host(Host(name=name, host="h", id=host_id))
+
+        self.assertEqual([h.name for h in self.wallet.jump_candidates("id-s")], ["A", "b"])
+        self.assertEqual([h.name for h in self.wallet.jump_candidates(None)], ["A", "b", "self"])
 
 
 if __name__ == "__main__":
