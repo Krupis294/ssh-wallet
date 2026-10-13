@@ -79,14 +79,6 @@ list.boxed-list {
   min-height: 30px;
 }
 
-/* The search glyph is replaced by the ">" prompt. */
-.prompt-bar entry.search > image:first-child {
-  -gtk-icon-size: 0;
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-}
-
 /* -- host list ----------------------------------------------------------- */
 
 list.host-list {
@@ -235,4 +227,20 @@ list.boxed-list > row.entry > box.header > .editable-area > text {
 .note-frame textview,
 .note-frame textview text {
   background: none;
+}
+
+/* -- tunnels and forwards -------------------------------------------------- */
+
+.tunnel-label {
+  color: var(--sw-dim);
+  font-size: 12pt;
+}
+
+list.boxed-list > row.forward-row > box {
+  margin: 10px 12px;
+}
+
+row.forward-row entry,
+row.forward-row dropdown > button {
+  min-height: 34px;
 }

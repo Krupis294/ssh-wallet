@@ -40,6 +40,22 @@ nepřesouvej (případně spusť `install.sh` znovu).
 | Esc      | vymazat hledání               |
 | Ctrl+Q   | konec                         |
 
+## Jump server a tunely
+
+- **Jump server:** ve formuláři hostu vyber jiný uložený host. Připojení
+  (kitty i tunel) pak vede přes něj jako `ProxyCommand`, takže jump použije
+  svůj vlastní port, klíč i uložené heslo; askpass pozná, o které heslo se
+  ssh ptá.
+- **Přesměrování portů:** ve formuláři přidej řádky `L` (port u tebe vede na
+  cíl za serverem, např. `5901 → localhost:5901` pro VNC) nebo `R` (port na
+  serveru vede na cíl u tebe).
+- **Tunel:** host s přesměrováním má v seznamu přepínač *Tunel*. Zapnutí spustí
+  na pozadí `ssh -N` bez terminálu, vypnutí ho ukončí. Když tunel spadne
+  (obsazený port, neznámý otisk hostu, odmítnuté heslo), přepínač se vrátí
+  a ukáže se důvod. Tunely končí se zavřením aplikace, ssh v kitty běží dál.
+  Bez terminálu se nedá nic doptat, takže tunel potřebuje uložené heslo nebo
+  klíč a hosta, ke kterému ses už jednou připojil přes *Připojit*.
+
 ## Rofi
 
 `ssh-wallet-rofi` je rychlý výběr hostu přes rofi: napíšeš kus názvu, adresy

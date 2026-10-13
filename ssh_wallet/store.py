@@ -7,7 +7,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 
-from ssh_wallet.model import Host
+from ssh_wallet.model import Forward, Host
 
 FORMAT_VERSION = 1
 _STRING_FIELDS = ("id", "name", "host", "user", "key_path", "note")
@@ -80,11 +80,28 @@ def _parse(text: str) -> list[Host]:
     return [_from_dict(entry) for entry in data["hosts"]]
 
 
+def _int(value) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise TypeError("expected an integer")
+    return value
+
+
+def _str(value) -> str:
+    if not isinstance(value, str):
+        raise TypeError("expected a string")
+    return value
+
+
 def _from_dict(entry: dict) -> Host:
-    for key in _STRING_FIELDS:
-        if not isinstance(entry[key], str):
-            raise TypeError(f"{key} must be a string")
-    port = entry["port"]
-    if not isinstance(port, int) or isinstance(port, bool):
-        raise TypeError("port must be an integer")
-    return Host(port=port, **{key: entry[key] for key in _STRING_FIELDS})
+    # jump_id and forwards came later; files written before them lack the keys.
+    forwards = entry.get("forwards", [])
+    if not isinstance(forwards, list):
+        raise TypeError("forwards must be a list")
+    return Host(
+        port=_int(entry["port"]),
+        jump_id=_str(entry.get("jump_id", "")),
+        forwards=[Forward(kind=_str(f["kind"]), port=_int(f["port"]),
+                          dest_host=_str(f["dest_host"]), dest_port=_int(f["dest_port"]))
+                  for f in forwards],
+        **{key: _str(entry[key]) for key in _STRING_FIELDS},
+    )

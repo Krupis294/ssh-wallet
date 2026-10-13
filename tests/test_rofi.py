@@ -49,6 +49,11 @@ class HostRowsTest(unittest.TestCase):
             "mikrotik  admin@192.168.122.19:22  Heslo Klíč",
         ])
 
+    def test_jump_tag(self):
+        [row] = host_rows([Host(name="pks2", host="h", jump_id="id-j")], has_password=lambda _id: False)
+
+        self.assertEqual(visible_text(row.display), "pks2  h:22  Jump")
+
     def test_markup_in_names_is_escaped(self):
         [row] = host_rows([Host(name="a<b>&c", host="h")], has_password=lambda _id: False)
 

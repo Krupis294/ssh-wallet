@@ -1,6 +1,6 @@
 import unittest
 
-from ssh_wallet.model import Host
+from ssh_wallet.model import Forward, Host
 
 
 class HostNormalizationTest(unittest.TestCase):
@@ -83,6 +83,51 @@ class HostMatchesTest(unittest.TestCase):
     def test_all_terms_must_match(self):
         self.assertTrue(self.host.matches("prod deploy"))
         self.assertFalse(self.host.matches("prod nas"))
+
+
+
+class ForwardTest(unittest.TestCase):
+    def test_local_spec(self):
+        self.assertEqual(Forward("L", 5901, "localhost", 5901).spec(), "5901:localhost:5901")
+
+    def test_ipv6_destination_is_bracketed(self):
+        self.assertEqual(Forward("R", 8080, "fe80::1", 80).spec(), "8080:[fe80::1]:80")
+
+    def test_describe(self):
+        self.assertEqual(Forward("L", 5901, "localhost", 5901).describe(), "L 5901 → localhost:5901")
+        self.assertEqual(Forward("R", 8080, "fe80::1", 80).describe(), "R 8080 → [fe80::1]:80")
+
+    def test_valid_forward_has_no_errors(self):
+        self.assertEqual(Forward("L", 1, "db.local", 65535).errors(), [])
+
+    def test_errors(self):
+        cases = [
+            (Forward("D", 1080, "localhost", 1), ["Typ musí být L nebo R."]),
+            (Forward("L", 0, "localhost", 22), ["Port musí být v rozsahu 1-65535."]),
+            (Forward("L", 22, "localhost", 70000), ["Cílový port musí být v rozsahu 1-65535."]),
+            (Forward("L", 22, " ", 22), ["Cílový host nesmí být prázdný."]),
+            (Forward("L", 22, "a b", 22), ["Cílový host nesmí obsahovat mezery."]),
+        ]
+        for forward, expected in cases:
+            with self.subTest(forward=forward):
+                self.assertEqual(forward.errors(), expected)
+
+
+class HostJumpAndForwardsTest(unittest.TestCase):
+    def test_defaults(self):
+        host = Host(name="n", host="h")
+
+        self.assertEqual((host.jump_id, host.forwards), ("", []))
+
+    def test_forward_errors_are_numbered(self):
+        host = Host(name="n", host="h", forwards=[Forward("L", 1, "x", 1), Forward("L", 0, "x", 1)])
+
+        self.assertEqual(host.errors(), ["Přesměrování 2: Port musí být v rozsahu 1-65535."])
+
+    def test_host_cannot_jump_through_itself(self):
+        host = Host(name="n", host="h", id="id-1", jump_id="id-1")
+
+        self.assertEqual(host.errors(), ["Host nemůže být svým vlastním jump serverem."])
 
 
 if __name__ == "__main__":

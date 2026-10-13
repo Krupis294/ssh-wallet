@@ -38,7 +38,8 @@ def host_rows(hosts: list[Host], has_password) -> list[Row]:
     width = max((len(h.name) for h in hosts), default=0)
     rows = []
     for host in hosts:
-        tags = [t for t, on in (("Heslo", has_password(host.id)), ("Klíč", bool(host.key_path))) if on]
+        tags = [t for t, on in (("Heslo", has_password(host.id)), ("Klíč", bool(host.key_path)),
+                                ("Jump", bool(host.jump_id))) if on]
         display = (f"<b>{html.escape(host.name, quote=False)}</b>"
                    + " " * (width - len(host.name) + 2) + _dim(host.subtitle()))
         if tags:

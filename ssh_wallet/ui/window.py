@@ -7,25 +7,46 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
+gi.require_version("Pango", "1.0")
+from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 
 from ssh_wallet.launcher import LaunchError  # noqa: E402
 from ssh_wallet.model import Host  # noqa: E402
+from ssh_wallet.tunnel import TunnelManager  # noqa: E402
 from ssh_wallet.ui.host_dialog import HostDialog  # noqa: E402
 from ssh_wallet.wallet import Wallet, WalletError  # noqa: E402
 
 
 class HostRow(Adw.ActionRow):
-    def __init__(self, host: Host, has_password: bool, on_edit, on_connect):
-        super().__init__(title=host.name, subtitle=host.subtitle(), use_markup=False,
-                         activatable=True)
+    def __init__(self, host: Host, has_password: bool, on_edit, on_connect,
+                 on_tunnel=None, tunnel_running: bool = False):
+        subtitle = "\n".join([host.subtitle(), *(f.describe() for f in host.forwards)])
+        super().__init__(title=host.name, subtitle=subtitle, use_markup=False, activatable=True)
         self.host = host
-        if host.note:
-            self.set_tooltip_text(host.note)
+        # Long addresses (IPv6) are shortened in the middle instead of wrapping
+        # mid-address; the full one is in the tooltip.
+        for label in _labels(self, "subtitle"):
+            label.set_wrap(False)
+            label.set_ellipsize(Pango.EllipsizeMode.MIDDLE)
+        self.set_tooltip_text("\n".join(filter(None, [host.subtitle(), host.note])))
         if has_password:
             self.add_suffix(_badge("Heslo", "Heslo uloženo v keyringu"))
         if host.key_path:
             self.add_suffix(_badge("Klíč", f"Klíč {host.key_path}"))
+        if host.jump_id:
+            self.add_suffix(_badge("Jump", "Připojuje se přes jump server"))
+
+        self.tunnel_switch = None
+        if host.forwards:
+            self.tunnel_switch = Gtk.Switch(valign=Gtk.Align.CENTER, active=tunnel_running,
+                                            tooltip_text="Přesměrování portů na pozadí, bez terminálu")
+            self._tunnel_handler = self.tunnel_switch.connect(
+                "notify::active", lambda switch, _: on_tunnel(host, switch.get_active()))
+            tunnel = Gtk.Box(spacing=8, valign=Gtk.Align.CENTER)
+            tunnel.append(Gtk.Label(label="Tunel", css_classes=["tunnel-label"]))
+            tunnel.append(self.tunnel_switch)
+            self.add_suffix(tunnel)
+
         edit = Gtk.Button(label="Upravit", valign=Gtk.Align.CENTER, tooltip_text="Ctrl+E",
                           css_classes=["flat", "row-action"])
         edit.connect("clicked", lambda *_: on_edit(host))
@@ -34,6 +55,22 @@ class HostRow(Adw.ActionRow):
         connect.connect("clicked", lambda *_: on_connect(host))
         self.add_suffix(edit)
         self.add_suffix(connect)
+
+    def show_tunnel_running(self, running: bool) -> None:
+        """Reflect the tunnel's state without reporting it as a user toggle."""
+        if self.tunnel_switch is None:
+            return
+        with self.tunnel_switch.handler_block(self._tunnel_handler):
+            self.tunnel_switch.set_active(running)
+
+
+def _labels(widget: Gtk.Widget, css_class: str) -> list[Gtk.Label]:
+    found = [widget] if isinstance(widget, Gtk.Label) and widget.has_css_class(css_class) else []
+    child = widget.get_first_child()
+    while child is not None:
+        found += _labels(child, css_class)
+        child = child.get_next_sibling()
+    return found
 
 
 def _badge(text: str, tooltip: str) -> Gtk.Label:
@@ -54,9 +91,11 @@ def _hints() -> Gtk.Box:
 
 
 class MainWindow(Adw.ApplicationWindow):
-    def __init__(self, wallet: Wallet, **kwargs):
-        super().__init__(title="SSH Wallet", default_width=720, default_height=700, **kwargs)
+    def __init__(self, wallet: Wallet, tunnels: TunnelManager | None = None, **kwargs):
+        super().__init__(title="SSH Wallet", default_width=820, default_height=700, **kwargs)
         self.wallet = wallet
+        self.tunnels = tunnels or TunnelManager()
+        self.last_toast: str | None = None
         self._rows: list[HostRow] = []
 
         add = Gtk.Button(label="+ Nový", tooltip_text="Ctrl+N", action_name="win.new-host",
@@ -72,6 +111,9 @@ class MainWindow(Adw.ApplicationWindow):
         search_keys.connect("key-pressed", self._on_search_key)
         self.search_entry.add_controller(search_keys)
         self.search_entry.set_key_capture_widget(self)
+        # The search glyph is replaced by the ">" prompt. Hiding it here rather than
+        # shrinking it to 0px in CSS, which makes GTK log icon-size criticals.
+        self.search_entry.get_first_child().set_visible(False)
         prompt_bar = Gtk.Box(css_classes=["prompt-bar"])
         prompt_bar.append(Gtk.Label(label=">", css_classes=["prompt"]))
         prompt_bar.append(self.search_entry)
@@ -122,7 +164,8 @@ class MainWindow(Adw.ApplicationWindow):
         for row in self._rows:
             self.listbox.remove(row)
         self._rows = [
-            HostRow(h, self.wallet.has_password(h.id), self.open_host_dialog, self._connect)
+            HostRow(h, self.wallet.has_password(h.id), self.open_host_dialog, self._connect,
+                    on_tunnel=self._toggle_tunnel, tunnel_running=self.tunnels.is_running(h.id))
             for h in self.wallet.hosts
         ]
         for row in self._rows:
@@ -153,12 +196,14 @@ class MainWindow(Adw.ApplicationWindow):
             self._connect(row.host)
 
     def toast(self, message: str, timeout: int = 4) -> None:
+        self.last_toast = message
         self.toast_overlay.add_toast(Adw.Toast(title=GLib.markup_escape_text(message),
                                                timeout=timeout))
 
     def open_host_dialog(self, host: Host | None) -> None:
         has_password = bool(host) and self.wallet.has_password(host.id)
-        dialog = HostDialog(host, has_password, on_save=self._save, on_delete=self.confirm_delete)
+        dialog = HostDialog(host, has_password, on_save=self._save, on_delete=self.confirm_delete,
+                            jump_candidates=self.wallet.jump_candidates(host.id if host else None))
         dialog.present(self)
 
     def confirm_delete(self, host: Host) -> None:
@@ -223,6 +268,30 @@ class MainWindow(Adw.ApplicationWindow):
         if row := self._selected_row():
             self.open_host_dialog(row.host)
 
+    def _toggle_tunnel(self, host: Host, on: bool) -> None:
+        if not on:
+            self.tunnels.stop(host.id)
+            return
+        try:
+            command = self.wallet.tunnel_command(host)
+            self.tunnels.start(host.id, host.name, command, on_exit=self._tunnel_exited)
+        except LaunchError as e:
+            self._show_tunnel(host.id, False)
+            self.toast(str(e), timeout=8)
+        except OSError as e:
+            self._show_tunnel(host.id, False)
+            self.toast(f"Tunel nejde spustit: {e.strerror or e}", timeout=8)
+
+    def _tunnel_exited(self, host_id: str, error: str | None) -> None:
+        self._show_tunnel(host_id, False)
+        if error:
+            self.toast(error, timeout=10)
+
+    def _show_tunnel(self, host_id: str, running: bool) -> None:
+        for row in self._rows:
+            if row.host.id == host_id:
+                row.show_tunnel_running(running)
+
     def _connect(self, host: Host) -> None:
         try:
             self.wallet.connect(host)
@@ -240,6 +309,7 @@ class MainWindow(Adw.ApplicationWindow):
         return None
 
     def _delete(self, host: Host) -> None:
+        self.tunnels.stop(host.id)
         try:
             self.wallet.delete_host(host.id)
         except WalletError as e:
