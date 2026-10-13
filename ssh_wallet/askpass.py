@@ -18,6 +18,8 @@ from pathlib import Path
 from ssh_wallet.vault import VaultError
 
 _PASSWORD_PROMPT = re.compile(r"password[^:]*:\s*$", re.IGNORECASE)
+# "user@host's password:" (password auth) or "(user@host) Password:" (keyboard-interactive).
+_PROMPT_HOST = (re.compile(r"\((?:[^)]*@)?([^)@]+)\)"), re.compile(r"(?:\S*@)?(\S+?)'s password"))
 _MARKER_PREFIX = "askpass-"
 
 
@@ -34,6 +36,14 @@ def decide(prompt: str, already_used: bool) -> Action:
     if "(yes/no" in prompt:
         return Action.ASK_VISIBLE
     return Action.ASK_HIDDEN
+
+
+def prompt_host(prompt: str) -> str | None:
+    """The host a password prompt is about, or None for other prompts."""
+    for pattern in _PROMPT_HOST:
+        if match := pattern.match(prompt):
+            return match.group(1)
+    return None
 
 
 def process_key(pid: int) -> str | None:
@@ -101,8 +111,15 @@ class TtyTerminal:
             return None
 
 
-def run(prompt, entry_id, vault, terminal, markers: Markers, ssh_pid: int) -> str | None:
-    """Return the answer for ssh, or None when the user cancelled."""
+def run(prompt, entry_id, vault, terminal, markers: Markers, ssh_pid: int,
+        jump_id: str | None = None, jump_host: str | None = None) -> str | None:
+    """Return the answer for ssh, or None when the user cancelled.
+
+    With a jump host, the jump's ssh (run by ProxyCommand) asks for its own
+    password; such prompts name the jump host and get the jump's password.
+    """
+    if jump_id and jump_host and prompt_host(prompt) == jump_host:
+        entry_id = jump_id
     action = decide(prompt, already_used=markers.used(ssh_pid))
 
     if action is Action.USE_STORED and entry_id and vault is not None:
@@ -146,7 +163,8 @@ def main(argv: list[str] | None = None) -> int:
         pass
 
     # ssh forks this helper directly, so the parent is the ssh process.
-    answer = run(prompt, os.environ.get("SSH_WALLET_ID"), vault, TtyTerminal(), markers, os.getppid())
+    answer = run(prompt, os.environ.get("SSH_WALLET_ID"), vault, TtyTerminal(), markers, os.getppid(),
+                 os.environ.get("SSH_WALLET_JUMP_ID"), os.environ.get("SSH_WALLET_JUMP_HOST"))
     if answer is None:
         return 1
     sys.stdout.write(answer + "\n")

@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from ssh_wallet.askpass import Action, Markers, decide, process_key, run
+from ssh_wallet.askpass import Action, Markers, decide, process_key, prompt_host, run
 from tests.fakes import FakeTerminal, FakeVault
 
 PASSWORD_PROMPT = "kuba@10.0.0.5's password: "
@@ -38,6 +38,20 @@ class DecideTest(unittest.TestCase):
             with self.subTest(prompt=prompt, used=used):
                 self.assertEqual(decide(prompt, already_used=used), expected)
 
+
+
+class PromptHostTest(unittest.TestCase):
+    def test_cases(self):
+        cases = [
+            ("kuba@10.0.0.5's password: ", "10.0.0.5"),
+            ("student@2001:db8::1's password: ", "2001:db8::1"),
+            ("(admin@bastion.example) Password: ", "bastion.example"),
+            ("(bastion.example) Password: ", "bastion.example"),
+            ("Enter passphrase for key '/k': ", None),
+        ]
+        for prompt, expected in cases:
+            with self.subTest(prompt=prompt):
+                self.assertEqual(prompt_host(prompt), expected)
 
 class MarkersTest(unittest.TestCase):
     def setUp(self):
@@ -154,6 +168,19 @@ class RunTest(unittest.TestCase):
                      markers=self.markers, ssh_pid=self.pid)
 
         self.assertEqual(result, "typed")
+
+    def run_jump(self, prompt, pid):
+        vault = FakeVault({"id-1": "target-pw", "id-j": "jump-pw"})
+        return run(prompt, entry_id="id-1", vault=vault, terminal=FakeTerminal(), markers=self.markers,
+                   ssh_pid=pid, jump_id="id-j", jump_host="bastion.example")
+
+    def test_jump_prompt_gets_jump_password(self):
+        self.assertEqual(self.run_jump("admin@bastion.example's password: ", os.getppid()), "jump-pw")
+
+    def test_target_prompt_gets_target_password_alongside_a_jump(self):
+        self.run_jump("admin@bastion.example's password: ", os.getppid())
+
+        self.assertEqual(self.run_jump("student@2001:db8::1's password: ", self.pid), "target-pw")
 
     def test_cancelled_question_returns_none(self):
         self.assertIsNone(self.run_prompt(HOSTKEY_PROMPT, FakeTerminal(None)))
