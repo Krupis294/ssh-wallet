@@ -60,7 +60,7 @@ list.boxed-list {
 /* -- prompt (search) ---------------------------------------------------- */
 
 .prompt-bar {
-  padding: 4px 16px 10px 16px;
+  padding: 8px 16px 12px 16px;
   border-bottom: 1px solid var(--sw-line);
 }
 
@@ -94,7 +94,7 @@ list.host-list {
 }
 
 list.host-list > row {
-  padding: 8px 12px 8px 13px;
+  padding: 10px 12px 10px 13px;
   border-left: 3px solid transparent;
   border-bottom: 1px solid var(--sw-line);
   border-radius: 0;
@@ -109,6 +109,11 @@ list.host-list > row:hover {
 list.host-list > row:selected {
   background-color: var(--sw-surface);
   border-left-color: var(--accent-color);
+}
+
+/* The name sits above the address; libadwaita's 3px gap is tight at 14pt. */
+list.host-list > row > box.header > box.title {
+  border-spacing: 5px;
 }
 
 list.host-list > row label.title {
@@ -168,7 +173,7 @@ statuspage .description {
 }
 
 .hints {
-  padding: 6px 16px;
+  padding: 9px 16px;
   border-top: 1px solid var(--sw-line);
   color: var(--sw-dim);
   font-size: 12pt;
@@ -188,6 +193,27 @@ list.boxed-list {
 
 list.boxed-list > row {
   border-color: var(--sw-line);
+}
+
+/*
+ * Row metrics follow the 14pt text. libadwaita sizes these for ~11pt, so at
+ * our size the label and the value end up almost touching each other and the
+ * row separators.
+ */
+list.boxed-list > row > box.header {
+  min-height: 64px;
+}
+
+/* Rows with a title above a subtitle (SSH klíč, Odebrat uložené heslo). */
+list.boxed-list > row > box.header > box.title {
+  margin-top: 10px;
+  margin-bottom: 10px;
+  border-spacing: 5px;
+}
+
+/* Rows with a title above an editable value (Název, Host, Username, Heslo). */
+list.boxed-list > row.entry > box.header > .editable-area {
+  padding: 9px 6px;
 }
 
 .note-frame {
