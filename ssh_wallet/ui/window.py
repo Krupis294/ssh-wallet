@@ -7,7 +7,8 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
+gi.require_version("Pango", "1.0")
+from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 
 from ssh_wallet.launcher import LaunchError  # noqa: E402
 from ssh_wallet.model import Host  # noqa: E402
@@ -22,8 +23,12 @@ class HostRow(Adw.ActionRow):
         subtitle = "\n".join([host.subtitle(), *(f.describe() for f in host.forwards)])
         super().__init__(title=host.name, subtitle=subtitle, use_markup=False, activatable=True)
         self.host = host
-        if host.note:
-            self.set_tooltip_text(host.note)
+        # Long addresses (IPv6) are shortened in the middle instead of wrapping
+        # mid-address; the full one is in the tooltip.
+        for label in _labels(self, "subtitle"):
+            label.set_wrap(False)
+            label.set_ellipsize(Pango.EllipsizeMode.MIDDLE)
+        self.set_tooltip_text("\n".join(filter(None, [host.subtitle(), host.note])))
         if has_password:
             self.add_suffix(_badge("Heslo", "Heslo uloženo v keyringu"))
         if host.key_path:
@@ -59,6 +64,15 @@ class HostRow(Adw.ActionRow):
             self.tunnel_switch.set_active(running)
 
 
+def _labels(widget: Gtk.Widget, css_class: str) -> list[Gtk.Label]:
+    found = [widget] if isinstance(widget, Gtk.Label) and widget.has_css_class(css_class) else []
+    child = widget.get_first_child()
+    while child is not None:
+        found += _labels(child, css_class)
+        child = child.get_next_sibling()
+    return found
+
+
 def _badge(text: str, tooltip: str) -> Gtk.Label:
     return Gtk.Label(label=text, valign=Gtk.Align.CENTER, tooltip_text=tooltip,
                      css_classes=["badge"])
@@ -78,7 +92,7 @@ def _hints() -> Gtk.Box:
 
 class MainWindow(Adw.ApplicationWindow):
     def __init__(self, wallet: Wallet, tunnels: TunnelManager | None = None, **kwargs):
-        super().__init__(title="SSH Wallet", default_width=720, default_height=700, **kwargs)
+        super().__init__(title="SSH Wallet", default_width=820, default_height=700, **kwargs)
         self.wallet = wallet
         self.tunnels = tunnels or TunnelManager()
         self.last_toast: str | None = None
@@ -97,6 +111,9 @@ class MainWindow(Adw.ApplicationWindow):
         search_keys.connect("key-pressed", self._on_search_key)
         self.search_entry.add_controller(search_keys)
         self.search_entry.set_key_capture_widget(self)
+        # The search glyph is replaced by the ">" prompt. Hiding it here rather than
+        # shrinking it to 0px in CSS, which makes GTK log icon-size criticals.
+        self.search_entry.get_first_child().set_visible(False)
         prompt_bar = Gtk.Box(css_classes=["prompt-bar"])
         prompt_bar.append(Gtk.Label(label=">", css_classes=["prompt"]))
         prompt_bar.append(self.search_entry)

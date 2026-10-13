@@ -278,6 +278,18 @@ class HostRowTest(unittest.TestCase):
 
         self.assertEqual(row.get_subtitle(), "u@h:22\nL 5901 → localhost:5901\nR 8080 → [fe80::1]:80")
 
+    def test_long_address_does_not_wrap_onto_more_lines(self):
+        short = self.make_row(Host(name="n", host="10.0.0.6", user="student"))
+        long = self.make_row(Host(name="n", host="2001:718:1001:2cf:20c:29ff:fe23:e429", user="student"))
+
+        height = lambda row: row.measure(Gtk.Orientation.VERTICAL, 420)[1]  # natural height
+        self.assertEqual(height(long), height(short))
+
+    def test_full_address_is_in_the_tooltip(self):
+        row = self.make_row(Host(name="n", host="2001:db8::1", user="student", note="VNC lab"))
+
+        self.assertEqual(row.get_tooltip_text(), "student@[2001:db8::1]:22\nVNC lab")
+
     def test_tunnel_switch_only_with_forwards(self):
         plain = self.make_row(Host(name="n", host="h"))
         tunnel = self.make_row(Host(name="t", host="h", forwards=[Forward("L", 1, "x", 1)]))

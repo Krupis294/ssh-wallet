@@ -79,14 +79,6 @@ list.boxed-list {
   min-height: 30px;
 }
 
-/* The search glyph is replaced by the ">" prompt. */
-.prompt-bar entry.search > image:first-child {
-  -gtk-icon-size: 0;
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-}
-
 /* -- host list ----------------------------------------------------------- */
 
 list.host-list {
