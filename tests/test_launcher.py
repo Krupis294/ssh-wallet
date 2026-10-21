@@ -1,9 +1,10 @@
 import os
+import shlex
 import subprocess
 import unittest
 from pathlib import Path
 
-from ssh_wallet.launcher import WRAPPER, Command, LaunchError, build_command, launch
+from ssh_wallet.launcher import WRAPPER, Command, LaunchError, build_command, display_command, launch
 from ssh_wallet.model import Host
 
 ASKPASS = Path("/opt/wallet/bin/ssh-wallet-askpass")
@@ -113,6 +114,53 @@ class JumpTest(unittest.TestCase):
 
         self.assertNotIn("SSH_WALLET_ID", command.env)
         self.assertEqual(command.env["SSH_WALLET_JUMP_ID"], "id-1")
+
+
+class DisplayCommandTest(unittest.TestCase):
+    """The ssh command copied for the user: short, but runnable in a shell."""
+
+    def test_plain_host_without_default_port(self):
+        self.assertEqual(display_command(Host(name="m", host="192.168.122.19", user="admin")),
+                         "ssh admin@192.168.122.19")
+
+    def test_port_and_key_keep_the_tilde(self):
+        host = Host(name="nas", host="nas", user="kuba", port=2222, key_path="~/.ssh/nas_key")
+
+        self.assertEqual(display_command(host), "ssh -p 2222 -i ~/.ssh/nas_key kuba@nas")
+
+    def test_key_with_spaces_is_quoted_after_the_tilde(self):
+        host = Host(name="nas", host="nas", key_path="~/my keys/nas")
+
+        self.assertEqual(display_command(host), "ssh -i ~/'my keys/nas' nas")
+
+    def test_absolute_key_and_destination_are_shell_quoted(self):
+        host = Host(name="nas", host="nas", user="ku$ba", key_path="/keys/a b")
+
+        self.assertEqual(display_command(host), "ssh -i '/keys/a b' 'ku$ba@nas'")
+
+    def test_jump_without_key_uses_dash_j(self):
+        jump = Host(name="bastion", host="bastion.example", user="admin", port=2200)
+        host = Host(name="pks2", host="10.0.0.6", user="student", jump_id=jump.id)
+
+        self.assertEqual(display_command(host, jump), "ssh -J admin@bastion.example:2200 student@10.0.0.6")
+
+    def test_jump_on_default_port_and_ipv6_jump(self):
+        host = Host(name="pks2", host="10.0.0.6")
+
+        self.assertEqual(display_command(host, Host(name="b", host="bastion")), "ssh -J bastion 10.0.0.6")
+        self.assertEqual(display_command(host, Host(name="b", host="2001:db8::2", user="a", port=2200)),
+                         "ssh -J 'a@[2001:db8::2]:2200' 10.0.0.6")
+
+    def test_jump_with_key_uses_proxy_command(self):
+        jump = Host(name="bastion", host="bastion", user="admin", key_path="/keys/b")
+        host = Host(name="pks2", host="10.0.0.6")
+
+        command = display_command(host, jump)
+
+        self.assertEqual(shlex.split(command), [
+            "ssh", "-o", "ProxyCommand=ssh -W '[%h]:%p' -p 22 -i /keys/b -o IdentitiesOnly=yes -- admin@bastion",
+            "10.0.0.6",
+        ])
 
 
 class WrapperTest(unittest.TestCase):

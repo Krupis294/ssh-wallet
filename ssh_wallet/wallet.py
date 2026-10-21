@@ -1,5 +1,7 @@
 """Application logic shared by the UI: host list, passwords and connecting."""
 
+import dataclasses
+import uuid
 from pathlib import Path
 
 from ssh_wallet import launcher, tunnel
@@ -30,7 +32,8 @@ class Wallet:
 
     @property
     def hosts(self) -> list[Host]:
-        return sorted(self._hosts, key=lambda h: h.name.casefold())
+        """Hosts in the user's order."""
+        return list(self._hosts)
 
     def has_password(self, host_id: str) -> bool:
         try:
@@ -54,7 +57,39 @@ class Wallet:
         except VaultError as e:
             raise WalletError(f"Heslo nelze uložit do keyringu: {e}") from e
 
-        hosts = [h for h in self._hosts if h.id != host.id] + [host]
+        hosts = list(self._hosts)
+        index = self._index(host.id)
+        if index is None:
+            hosts.append(host)
+        else:
+            hosts[index] = host
+        self._write(hosts)
+
+    def duplicate_host(self, host_id: str) -> Host:
+        """Save a copy of the host, with its password, right after the original."""
+        index = self._index(host_id)
+        original = self._hosts[index]
+        copy = dataclasses.replace(
+            original, id=str(uuid.uuid4()), name=f"{original.name} (kopie)",
+            forwards=[dataclasses.replace(f) for f in original.forwards],
+        )
+        try:
+            if (password := self._vault.get(host_id)) is not None:
+                self._vault.set(copy.id, password, label=f"SSH Wallet: {copy.name}")
+        except VaultError as e:
+            raise WalletError(f"Heslo nelze zkopírovat v keyringu: {e}") from e
+        hosts = list(self._hosts)
+        hosts.insert(index + 1, copy)
+        self._write(hosts)
+        return copy
+
+    def move_host(self, host_id: str, target_id: str) -> None:
+        """Put the host where ``target_id`` is now; the hosts in between shift by one."""
+        index, target = self._index(host_id), self._index(target_id)
+        if index is None or target is None or index == target:
+            return
+        hosts = list(self._hosts)
+        hosts.insert(target, hosts.pop(index))
         self._write(hosts)
 
     def delete_host(self, host_id: str) -> None:
@@ -84,6 +119,10 @@ class Wallet:
             jump=jump, jump_has_password=jump is not None and self.has_password(jump.id),
         )
 
+    def ssh_command(self, host: Host) -> str:
+        """A short ssh command line for ``host`` to copy. Raises launcher.LaunchError."""
+        return launcher.display_command(host, self._jump_of(host))
+
     def _jump_of(self, host: Host) -> Host | None:
         if not host.jump_id:
             return None
@@ -91,6 +130,9 @@ class Wallet:
         if jump is None:
             raise LaunchError(f"Jump server hostu {host.name} už neexistuje. Vyber jiný v úpravách.")
         return jump
+
+    def _index(self, host_id: str) -> int | None:
+        return next((i for i, h in enumerate(self._hosts) if h.id == host_id), None)
 
     def _write(self, hosts: list[Host]) -> None:
         try:

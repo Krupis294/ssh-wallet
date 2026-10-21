@@ -41,11 +41,83 @@ class WalletTest(unittest.TestCase):
         self.dir.chmod(0o500)
         self.addCleanup(self.dir.chmod, 0o700)
 
-    def test_hosts_are_sorted_by_name_ignoring_case(self):
-        for name in ["beta", "Alpha", "gamma"]:
-            self.wallet.save_host(Host(name=name, host="h"))
+    def names(self) -> list[str]:
+        return [h.name for h in self.wallet.hosts]
 
-        self.assertEqual([h.name for h in self.wallet.hosts], ["Alpha", "beta", "gamma"])
+    def save_named(self, *names: str) -> None:
+        for name in names:
+            self.wallet.save_host(Host(name=name, host="h", id=f"id-{name}"))
+
+    def test_new_hosts_are_added_at_the_end(self):
+        self.save_named("beta", "Alpha", "gamma")
+
+        self.assertEqual(self.names(), ["beta", "Alpha", "gamma"])
+
+    def test_editing_a_host_keeps_its_place(self):
+        self.save_named("a", "b", "c")
+
+        self.wallet.save_host(Host(name="b2", host="h", id="id-b"))
+
+        self.assertEqual(self.names(), ["a", "b2", "c"])
+        self.assertEqual(self.names_on_disk(), ["a", "b2", "c"])
+
+    def test_move_up_takes_the_target_place(self):
+        self.save_named("a", "b", "c", "d")
+
+        self.wallet.move_host("id-d", "id-b")
+
+        self.assertEqual(self.names(), ["a", "d", "b", "c"])
+        self.assertEqual(self.names_on_disk(), ["a", "d", "b", "c"])
+
+    def test_move_down_takes_the_target_place(self):
+        self.save_named("a", "b", "c", "d")
+
+        self.wallet.move_host("id-a", "id-c")
+
+        self.assertEqual(self.names(), ["b", "c", "a", "d"])
+
+    def test_move_onto_itself_or_unknown_host_changes_nothing(self):
+        self.save_named("a", "b")
+
+        self.wallet.move_host("id-a", "id-a")
+        self.wallet.move_host("id-a", "gone")
+        self.wallet.move_host("gone", "id-a")
+
+        self.assertEqual(self.names(), ["a", "b"])
+
+    def test_duplicate_is_a_copy_placed_after_the_original(self):
+        original = Host(name="nas", host="10.0.0.5", port=2222, user="kuba", key_path="~/.ssh/k",
+                        note="n", id="id-1", jump_id="id-j", forwards=[Forward("L", 5901, "localhost", 5901)])
+        self.wallet.save_host(original)
+        self.save_named("web")
+
+        copy = self.wallet.duplicate_host("id-1")
+
+        self.assertNotEqual(copy.id, "id-1")
+        self.assertEqual(copy.name, "nas (kopie)")
+        self.assertEqual((copy.host, copy.port, copy.user, copy.key_path, copy.note, copy.jump_id),
+                         ("10.0.0.5", 2222, "kuba", "~/.ssh/k", "n", "id-j"))
+        self.assertEqual(copy.forwards, original.forwards)
+        self.assertIsNot(copy.forwards, original.forwards)
+        self.assertEqual(self.names_on_disk(), ["nas", "nas (kopie)", "web"])
+
+    def test_duplicate_copies_the_password(self):
+        self.wallet.save_host(Host(name="nas", host="h", id="id-1"), password="pw")
+
+        copy = self.wallet.duplicate_host("id-1")
+
+        self.assertEqual(self.vault.passwords[copy.id], "pw")
+        self.assertEqual(self.vault.labels[copy.id], "SSH Wallet: nas (kopie)")
+
+    def test_duplicate_with_broken_keyring_creates_nothing(self):
+        self.wallet.save_host(Host(name="nas", host="h", id="id-1"))
+        wallet = self.new_wallet(vault=FakeVault(fail=True))
+
+        with self.assertRaises(WalletError) as ctx:
+            wallet.duplicate_host("id-1")
+
+        self.assertIn("keyring", str(ctx.exception))
+        self.assertEqual(self.names_on_disk(), ["nas"])
 
     def test_saved_host_survives_reload(self):
         self.wallet.save_host(Host(name="nas", host="10.0.0.5", id="id-1"))
@@ -194,12 +266,23 @@ class WalletTest(unittest.TestCase):
         self.assertIn("ProxyCommand=ssh -W '[%h]:%p' -p 22 -- bastion.example", command.argv)
         self.assertEqual(command.env["SSH_WALLET_ID"], "id-t")
 
+    def test_ssh_command_resolves_the_jump_host(self):
+        self.wallet.save_host(Host(name="bastion", host="bastion.example", user="admin", id="id-j"))
+        target = Host(name="pks2", host="10.0.0.6", user="student", id="id-t", jump_id="id-j")
+        self.wallet.save_host(target, password="pw")
+
+        self.assertEqual(self.wallet.ssh_command(target), "ssh -J admin@bastion.example student@10.0.0.6")
+
+    def test_ssh_command_with_a_deleted_jump_host_fails_clearly(self):
+        with self.assertRaises(LaunchError):
+            self.wallet.ssh_command(Host(name="pks2", host="10.0.0.6", jump_id="gone"))
+
     def test_jump_candidates_are_the_other_hosts(self):
         for name, host_id in [("b", "id-b"), ("A", "id-a"), ("self", "id-s")]:
             self.wallet.save_host(Host(name=name, host="h", id=host_id))
 
-        self.assertEqual([h.name for h in self.wallet.jump_candidates("id-s")], ["A", "b"])
-        self.assertEqual([h.name for h in self.wallet.jump_candidates(None)], ["A", "b", "self"])
+        self.assertEqual([h.name for h in self.wallet.jump_candidates("id-s")], ["b", "A"])
+        self.assertEqual([h.name for h in self.wallet.jump_candidates(None)], ["b", "A", "self"])
 
 
 if __name__ == "__main__":

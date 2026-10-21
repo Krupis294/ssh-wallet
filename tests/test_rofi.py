@@ -134,7 +134,7 @@ class RunTest(unittest.TestCase):
 
         self.assertEqual(code, 0)
         [command] = self.launch.commands
-        self.assertEqual(command.argv[-1], "10.0.0.5")  # sorted: nas, web
+        self.assertEqual(command.argv[-1], "10.0.0.6")  # saved order: web, nas
 
     def test_last_entry_opens_gui(self):
         rofi = FakeRofi(done("1\n"))

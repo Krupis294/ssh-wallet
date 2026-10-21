@@ -6,7 +6,7 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ssh_wallet.model import Host
+from ssh_wallet.model import DEFAULT_PORT, Host, bracket
 
 ASKPASS_PATH = Path(__file__).resolve().parent.parent / "bin" / "ssh-wallet-askpass"
 
@@ -57,6 +57,33 @@ def ssh_args(host: Host, jump: Host | None = None, extra: list[str] = ()) -> lis
     if jump is not None:
         args += ["-o", f"ProxyCommand={proxy_command(jump)}"]
     return [*args, *extra, "--", host.destination()]
+
+
+def display_command(host: Host, jump: Host | None = None) -> str:
+    """A short ssh command line for ``host`` to paste into a shell. No password, no forwards.
+
+    A jump with its own key cannot be written as ``-J`` (it takes no key), so
+    that case falls back to the ProxyCommand the wallet itself uses.
+    """
+    args = ["ssh"]
+    if host.port != DEFAULT_PORT:
+        args += ["-p", str(host.port)]
+    if host.key_path:
+        args += ["-i", _quote_path(host.key_path)]
+    if jump is not None and jump.key_path:
+        args += ["-o", shlex.quote(f"ProxyCommand={proxy_command(jump)}")]
+    elif jump is not None:
+        port = f":{jump.port}" if jump.port != DEFAULT_PORT else ""
+        user = f"{jump.user}@" if jump.user else ""
+        args += ["-J", shlex.quote(f"{user}{bracket(jump.host)}{port}")]
+    return " ".join([*args, shlex.quote(host.destination())])
+
+
+def _quote_path(path: str) -> str:
+    """Shell-quote ``path`` but leave a leading ``~/`` unquoted so the shell still expands it."""
+    if path.startswith("~/"):
+        return "~/" + shlex.quote(path[2:])
+    return shlex.quote(path)
 
 
 def askpass_env(host: Host, has_password: bool, jump: Host | None, jump_has_password: bool,
