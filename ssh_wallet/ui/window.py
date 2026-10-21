@@ -8,7 +8,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 gi.require_version("Pango", "1.0")
-from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
+from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk, Pango  # noqa: E402
 
 from ssh_wallet.launcher import LaunchError  # noqa: E402
 from ssh_wallet.model import Host  # noqa: E402
@@ -78,11 +78,36 @@ def _badge(text: str, tooltip: str) -> Gtk.Label:
                      css_classes=["badge"])
 
 
+# Right-click menu of a host row: (label, window action) per section.
+MENU_SECTIONS = [
+    [("Připojit", "connect-host"), ("Kopírovat ssh příkaz", "copy-command")],
+    [("Upravit", "edit-host"), ("Duplikovat", "duplicate-host")],
+    [("Smazat", "delete-host")],
+]
+
+
+def host_menu() -> Gio.Menu:
+    """The row menu. Its actions act on the selected row, so opening it selects the row.
+
+    The keyboard shortcuts stay out of it: an empty ``accel`` hides them, and
+    "Kopírovat ssh příkaz" would otherwise run into its "Shift+Ctrl+C".
+    """
+    menu = Gio.Menu()
+    for items in MENU_SECTIONS:
+        section = Gio.Menu()
+        for label, action in items:
+            item = Gio.MenuItem.new(label, f"win.{action}")
+            item.set_attribute_value("accel", GLib.Variant("s", ""))
+            section.append_item(item)
+        menu.append_section(None, section)
+    return menu
+
+
 def _hints() -> Gtk.Box:
     """Bottom status line with the main keyboard shortcuts."""
     box = Gtk.Box(spacing=20, css_classes=["hints"])
     for key, action in [("Enter", "Připojit"), ("Ctrl+N", "Nový"), ("Ctrl+E", "Upravit"),
-                        ("Esc", "Vymazat hledání")]:
+                        ("Alt+↑↓", "Přesunout"), ("Esc", "Vymazat hledání")]:
         pair = Gtk.Box(spacing=6)
         pair.append(Gtk.Label(label=key, css_classes=["key"]))
         pair.append(Gtk.Label(label=action))
@@ -97,6 +122,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.tunnels = tunnels or TunnelManager()
         self.last_toast: str | None = None
         self._rows: list[HostRow] = []
+        # Where the pointer grabbed the dragged row, so the drag icon stays under it.
+        self._drag_hotspot = (0, 0)
 
         add = Gtk.Button(label="+ Nový", tooltip_text="Ctrl+N", action_name="win.new-host",
                          css_classes=["flat"])
@@ -125,6 +152,9 @@ class MainWindow(Adw.ApplicationWindow):
         list_keys = Gtk.EventControllerKey()
         list_keys.connect("key-pressed", self._on_list_key)
         self.listbox.add_controller(list_keys)
+        right_click = Gtk.GestureClick(button=Gdk.BUTTON_SECONDARY)
+        right_click.connect("pressed", self._on_right_click)
+        self.listbox.add_controller(right_click)
 
         list_page = Gtk.ScrolledWindow(vexpand=True, hscrollbar_policy=Gtk.PolicyType.NEVER,
                                        child=self.listbox)
@@ -151,8 +181,14 @@ class MainWindow(Adw.ApplicationWindow):
         self.set_content(toolbar)
 
         self._add_action("new-host", lambda: self.open_host_dialog(None))
-        self._add_action("edit-host", self._edit_selected)
         self._add_action("focus-search", self.search_entry.grab_focus)
+        self._add_action("connect-host", lambda: self._with_selected(self._connect))
+        self._add_action("copy-command", lambda: self._with_selected(self._copy_command))
+        self._add_action("edit-host", lambda: self._with_selected(self.open_host_dialog))
+        self._add_action("duplicate-host", lambda: self._with_selected(self._duplicate))
+        self._add_action("delete-host", lambda: self._with_selected(self.confirm_delete))
+        self._add_action("move-up", lambda: self._move_selected(-1))
+        self._add_action("move-down", lambda: self._move_selected(1))
 
         self.reload()
 
@@ -169,6 +205,7 @@ class MainWindow(Adw.ApplicationWindow):
             for h in self.wallet.hosts
         ]
         for row in self._rows:
+            self._add_drag_and_drop(row)
             self.listbox.append(row)
         self._update_view(select_id)
 
@@ -258,15 +295,104 @@ class MainWindow(Adw.ApplicationWindow):
             return True
         return False
 
-    def _on_list_key(self, _controller, keyval, _keycode, _state) -> bool:
-        if keyval == Gdk.KEY_Delete and (row := self._selected_row()):
+    def _on_list_key(self, _controller, keyval, _keycode, state) -> bool:
+        row = self._selected_row()
+        if row is None:
+            return False
+        if keyval == Gdk.KEY_Delete:
             self.confirm_delete(row.host)
+            return True
+        if keyval == Gdk.KEY_Menu or (keyval == Gdk.KEY_F10 and state & Gdk.ModifierType.SHIFT_MASK):
+            ok, bounds = row.compute_bounds(self.listbox)
+            if ok:
+                self._open_menu(row, bounds.get_x() + 24, bounds.get_y() + bounds.get_height())
             return True
         return False
 
-    def _edit_selected(self) -> None:
-        if row := self._selected_row():
-            self.open_host_dialog(row.host)
+    def _on_right_click(self, gesture, _n_press, x, y) -> None:
+        if row := self.listbox.get_row_at_y(int(y)):
+            gesture.set_state(Gtk.EventSequenceState.CLAIMED)
+            self._open_menu(row, x, y)
+
+    def _open_menu(self, row: HostRow, x: float, y: float) -> None:
+        self.listbox.select_row(row)
+        menu = Gtk.PopoverMenu(menu_model=host_menu(), has_arrow=False, halign=Gtk.Align.START,
+                               css_classes=["host-menu"])
+        menu.set_parent(self.listbox)
+        # PyGObject ignores constructor arguments of boxed types, so the fields are set one by one.
+        pointer = Gdk.Rectangle()
+        pointer.x, pointer.y, pointer.width, pointer.height = int(x), int(y), 1, 1
+        menu.set_pointing_to(pointer)
+        # Unparent only after the chosen item's action has run; it is looked up through the parent.
+        menu.connect("closed", lambda m: GLib.idle_add(m.unparent))
+
+        # The section separators show up only in an idle callback after the menu is built.
+        # Popping up right away sizes the popover without them and scrolls the last item off.
+        def popup():
+            if menu.get_parent() is not None:
+                menu.popup()
+
+        GLib.idle_add(popup)
+
+    def _with_selected(self, callback) -> None:
+        # The window shortcuts stay active under an open dialog; leave the list alone then.
+        if self.get_visible_dialog() is None and (row := self._selected_row()):
+            callback(row.host)
+
+    def _add_drag_and_drop(self, row: HostRow) -> None:
+        """Dragging a row onto another puts its host in that row's place."""
+        drag = Gtk.DragSource(actions=Gdk.DragAction.MOVE)
+        drag.connect("prepare", self._on_drag_prepare, row)
+        drag.connect("drag-begin", self._on_drag_begin, row)
+        row.add_controller(drag)
+        drop = Gtk.DropTarget.new(GObject.TYPE_STRING, Gdk.DragAction.MOVE)
+        drop.connect("drop", lambda _target, host_id, _x, _y: self._move(host_id, row.host.id) or True)
+        row.add_controller(drop)
+
+    def _on_drag_prepare(self, _source, x, y, row: HostRow) -> Gdk.ContentProvider:
+        self._drag_hotspot = (int(x), int(y))
+        return Gdk.ContentProvider.new_for_value(row.host.id)
+
+    def _on_drag_begin(self, source, _drag, row: HostRow) -> None:
+        source.set_icon(Gtk.WidgetPaintable.new(row), *self._drag_hotspot)
+
+    def _move_selected(self, step: int) -> None:
+        """Swap the selected host with its visible neighbour; hidden hosts are skipped."""
+        row, rows = self._selected_row(), self._visible_rows()
+        if self.get_visible_dialog() is not None or row not in rows:
+            return
+        index = rows.index(row) + step
+        if 0 <= index < len(rows):
+            self._move(row.host.id, rows[index].host.id)
+
+    def _move(self, host_id: str, target_id: str) -> None:
+        had_focus = self.listbox.get_focus_child() is not None
+        try:
+            self.wallet.move_host(host_id, target_id)
+        except WalletError as e:
+            self.toast(str(e), timeout=6)
+            return
+        self.reload(select_id=host_id)
+        if had_focus and (row := self._selected_row()):
+            row.grab_focus()
+
+    def _copy_command(self, host: Host) -> None:
+        try:
+            command = self.wallet.ssh_command(host)
+        except LaunchError as e:
+            self.toast(str(e), timeout=6)
+            return
+        self.get_clipboard().set(command)
+        self.toast(f"Zkopírováno: {command}")
+
+    def _duplicate(self, host: Host) -> None:
+        try:
+            copy = self.wallet.duplicate_host(host.id)
+        except WalletError as e:
+            self.toast(str(e), timeout=6)
+            return
+        self.reload(select_id=copy.id)
+        self.open_host_dialog(copy)
 
     def _toggle_tunnel(self, host: Host, on: bool) -> None:
         if not on:

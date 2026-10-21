@@ -44,7 +44,7 @@ class HostStoreTest(unittest.TestCase):
         self.store.save([Host(name="m", host="h", id="id-1")])
 
         self.assertEqual(json.loads(self.path.read_text()), {
-            "version": 1,
+            "version": 2,
             "hosts": [{"id": "id-1", "name": "m", "host": "h", "port": 22,
                        "user": "", "key_path": "", "note": "", "jump_id": "", "forwards": []}],
         })
@@ -69,6 +69,20 @@ class HostStoreTest(unittest.TestCase):
 
         self.assertEqual(result.hosts, [Host(name="n", host="h", id="x")])
         self.assertIsNone(result.backup_path)
+
+    def test_hosts_keep_their_saved_order(self):
+        self.store.save([Host(name="web", host="h", id="id-1"), Host(name="Alpha", host="h", id="id-2")])
+
+        self.assertEqual([h.name for h in HostStore(self.path).load().hosts], ["web", "Alpha"])
+
+    def test_version_1_file_loads_sorted_by_name(self):
+        # Version 1 had no manual order; the app showed hosts sorted by name.
+        self.dir.mkdir(parents=True)
+        entries = [{"id": f"id-{name}", "name": name, "host": "h", "port": 22,
+                    "user": "", "key_path": "", "note": ""} for name in ["web", "Alpha", "nas"]]
+        self.path.write_text(json.dumps({"version": 1, "hosts": entries}))
+
+        self.assertEqual([h.name for h in self.store.load().hosts], ["Alpha", "nas", "web"])
 
     def test_saved_file_is_private(self):
         self.store.save([Host(name="m", host="h")])
@@ -98,7 +112,7 @@ class HostStoreTest(unittest.TestCase):
         self.assert_backed_up("{not json")
 
     def test_unknown_version_is_backed_up(self):
-        self.assert_backed_up('{"version": 2, "hosts": []}')
+        self.assert_backed_up('{"version": 3, "hosts": []}')
 
     def test_entry_with_missing_field_is_backed_up(self):
         self.assert_backed_up('{"version": 1, "hosts": [{"id": "x", "name": "n"}]}')

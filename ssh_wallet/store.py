@@ -9,7 +9,9 @@ from pathlib import Path
 
 from ssh_wallet.model import Forward, Host
 
-FORMAT_VERSION = 1
+# Version 2 keeps hosts in the user's order; version 1 files are read sorted by name.
+FORMAT_VERSION = 2
+_SUPPORTED_VERSIONS = (1, 2)
 _STRING_FIELDS = ("id", "name", "host", "user", "key_path", "note")
 
 
@@ -73,11 +75,14 @@ def _to_dict(host: Host) -> dict:
 
 def _parse(text: str) -> list[Host]:
     data = json.loads(text)
-    if not isinstance(data, dict) or data.get("version") != FORMAT_VERSION:
+    if not isinstance(data, dict) or data.get("version") not in _SUPPORTED_VERSIONS:
         raise ValueError("unsupported file format")
     if not isinstance(data["hosts"], list):
         raise TypeError("hosts must be a list")
-    return [_from_dict(entry) for entry in data["hosts"]]
+    hosts = [_from_dict(entry) for entry in data["hosts"]]
+    if data["version"] == 1:
+        hosts.sort(key=lambda h: h.name.casefold())
+    return hosts
 
 
 def _int(value) -> int:

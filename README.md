@@ -35,10 +35,29 @@ nepřesouvej (případně spusť `install.sh` znovu).
 | Enter    | připojit                      |
 | Ctrl+N   | nový host                     |
 | Ctrl+E   | upravit vybraný host          |
+| Ctrl+D   | duplikovat vybraný host       |
+| Ctrl+Shift+C | zkopírovat ssh příkaz vybraného hostu |
+| Alt+↑ / Alt+↓ | posunout vybraný host v seznamu |
 | Delete   | smazat vybraný host (v seznamu) |
+| Menu / Shift+F10 | kontextové menu vybraného hostu (v seznamu) |
 | Ctrl+F   | skok do hledání               |
 | Esc      | vymazat hledání               |
 | Ctrl+Q   | konec                         |
+
+## Kontextové menu a pořadí
+
+Pravé tlačítko na hostu otevře u myši menu: *Připojit*, *Kopírovat ssh příkaz*,
+*Upravit*, *Duplikovat* a *Smazat*.
+
+- **Kopírovat ssh příkaz** dá do schránky krátký příkaz, např.
+  `ssh -p 2222 -i ~/.ssh/nas kuba@10.0.0.6`, jump server jako `-J`
+  (s vlastním klíčem jako `ProxyCommand`). Heslo ani přesměrování portů
+  v něm nejsou.
+- **Duplikovat** vloží kopii i s uloženým heslem hned pod originál a otevře
+  její úpravy.
+- **Pořadí** si určíš sám: přetáhni řádek myší na místo jiného, nebo Alt+↑/↓.
+  Při hledání se host posouvá mezi nalezenými. Stejné pořadí používá rofi.
+  Starší `hosts.json` se při prvním načtení seřadí podle názvu.
 
 ## Jump server a tunely
 

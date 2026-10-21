@@ -7,7 +7,7 @@ DEFAULT_PORT = 22
 FORWARD_KINDS = ("L", "R")
 
 
-def _bracket(host: str) -> str:
+def bracket(host: str) -> str:
     """IPv6 addresses go in brackets wherever a port follows them."""
     return f"[{host}]" if ":" in host else host
 
@@ -40,10 +40,10 @@ class Forward:
 
     def spec(self) -> str:
         """The argument of ssh -L / -R."""
-        return f"{self.port}:{_bracket(self.dest_host)}:{self.dest_port}"
+        return f"{self.port}:{bracket(self.dest_host)}:{self.dest_port}"
 
     def describe(self) -> str:
-        return f"{self.kind} {self.port} → {_bracket(self.dest_host)}:{self.dest_port}"
+        return f"{self.kind} {self.port} → {bracket(self.dest_host)}:{self.dest_port}"
 
 
 @dataclass
@@ -92,7 +92,7 @@ class Host:
 
     def subtitle(self) -> str:
         user = f"{self.user}@" if self.user else ""
-        return f"{user}{_bracket(self.host)}:{self.port}"
+        return f"{user}{bracket(self.host)}:{self.port}"
 
     def matches(self, query: str) -> bool:
         """True when every whitespace-separated term of ``query`` occurs in some field."""

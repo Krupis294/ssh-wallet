@@ -103,6 +103,29 @@ list.host-list > row:selected {
   border-left-color: var(--accent-color);
 }
 
+/* Drag and drop: the row whose place the dragged host would take. */
+list.host-list > row:drop(active) {
+  background-color: var(--sw-surface-hover);
+  box-shadow: inset 0 0 0 1px var(--accent-color);
+}
+
+/* Right-click menu of a host: roomy items sized for the 14pt text. */
+popover.host-menu > contents {
+  padding: 6px;
+  min-width: 300px;
+  border-radius: var(--window-radius);
+}
+
+popover.host-menu modelbutton {
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: var(--sw-radius);
+}
+
+popover.host-menu separator {
+  margin: 6px 4px;
+}
+
 /* The name sits above the address; libadwaita's 3px gap is tight at 14pt. */
 list.host-list > row > box.header > box.title {
   border-spacing: 5px;
