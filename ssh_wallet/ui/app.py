@@ -29,6 +29,10 @@ class SshWalletApp(Adw.Application):
         self.set_accels_for_action("win.new-host", ["<Control>n"])
         self.set_accels_for_action("win.edit-host", ["<Control>e"])
         self.set_accels_for_action("win.focus-search", ["<Control>f"])
+        self.set_accels_for_action("win.duplicate-host", ["<Control>d"])
+        self.set_accels_for_action("win.copy-command", ["<Control><Shift>c"])
+        self.set_accels_for_action("win.move-up", ["<Alt>Up"])
+        self.set_accels_for_action("win.move-down", ["<Alt>Down"])
 
     def do_startup(self):
         Adw.Application.do_startup(self)

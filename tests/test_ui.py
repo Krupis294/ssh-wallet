@@ -2,16 +2,18 @@
 
 import tempfile
 import unittest
+import warnings
 from pathlib import Path
 
 import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gtk  # noqa: E402
+from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
 from ssh_wallet.model import Forward, Host  # noqa: E402
 from ssh_wallet.store import HostStore  # noqa: E402
+from ssh_wallet.ui.host_dialog import HostDialog  # noqa: E402
 from ssh_wallet.wallet import Wallet  # noqa: E402
 from tests.fakes import FakeVault  # noqa: E402
 from tests.test_tunnel import FakeSpawner  # noqa: E402
@@ -39,14 +41,14 @@ class MainWindowTest(unittest.TestCase):
 
         self.assertEqual(window.stack.get_visible_child_name(), "empty")
 
-    def test_hosts_are_listed_sorted(self):
+    def test_hosts_are_listed_in_saved_order(self):
         self.wallet.save_host(Host(name="web", host="10.0.0.5"))
         self.wallet.save_host(Host(name="nas", host="10.0.0.6"))
 
         window = self.make_window()
 
         self.assertEqual(window.stack.get_visible_child_name(), "list")
-        self.assertEqual([h.name for h in window.visible_hosts()], ["nas", "web"])
+        self.assertEqual([h.name for h in window.visible_hosts()], ["web", "nas"])
 
     def test_search_filters_and_reports_no_results(self):
         self.wallet.save_host(Host(name="web", host="10.0.0.5"))
@@ -60,8 +62,8 @@ class MainWindowTest(unittest.TestCase):
         self.assertEqual(window.stack.get_visible_child_name(), "no-results")
 
     def test_enter_in_search_connects_to_first_match(self):
-        self.wallet.save_host(Host(name="web", host="10.0.0.5"))
         self.wallet.save_host(Host(name="nas", host="10.0.0.6", user="kuba"))
+        self.wallet.save_host(Host(name="web", host="10.0.0.5"))
         window = self.make_window()
 
         window.search_entry.set_text("10.0")
@@ -71,14 +73,173 @@ class MainWindowTest(unittest.TestCase):
         self.assertEqual(command.argv[-1], "kuba@10.0.0.6")
 
     def test_enter_connects_to_selected_row_when_it_is_visible(self):
-        self.wallet.save_host(Host(name="web", host="10.0.0.5"))
         self.wallet.save_host(Host(name="nas", host="10.0.0.6"))
+        self.wallet.save_host(Host(name="web", host="10.0.0.5"))
         window = self.make_window()
 
         window.select_next(1)
         window.search_entry.emit("activate")
 
         self.assertEqual(self.launch.commands[0].argv[-1], "10.0.0.5")
+
+
+@unittest.skipUnless(HAS_DISPLAY, "needs a display")
+class HostActionsTest(unittest.TestCase):
+    """Context menu actions; they act on the selected row."""
+
+    def setUp(self):
+        from ssh_wallet.ui.window import MainWindow
+
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.launch = RecordingLaunch()
+        self.vault = FakeVault()
+        self.wallet = Wallet(HostStore(Path(tmp.name) / "hosts.json"), self.vault, launch=self.launch)
+        self.wallet.load()
+        for name in ["a", "b", "c"]:
+            self.wallet.save_host(Host(name=name, host=f"{name}.example", id=f"id-{name}"))
+        self.window = MainWindow(wallet=self.wallet)
+
+    def select(self, name):
+        [row] = [r for r in self.window._rows if r.host.name == name]
+        self.window.listbox.select_row(row)
+
+    def run_action(self, name):
+        self.assertTrue(self.window.activate_action(f"win.{name}", None))
+
+    def names(self):
+        return [h.name for h in self.window.visible_hosts()]
+
+    def selected(self):
+        return self.window.listbox.get_selected_row().host.name
+
+    def test_every_menu_item_is_a_window_action(self):
+        from ssh_wallet.ui.window import host_menu
+
+        actions = []
+        sections = host_menu()
+        for i in range(sections.get_n_items()):
+            section = sections.get_item_link(i, "section")
+            for j in range(section.get_n_items()):
+                actions.append(section.get_item_attribute_value(j, "action").get_string())
+
+        self.assertEqual(len(actions), 5)
+        self.assertNotIn("win.move-up", actions)
+        for action in actions:
+            self.assertIsNotNone(self.window.lookup_action(action.removeprefix("win.")), action)
+
+    def test_menu_hides_the_shortcuts_of_its_items(self):
+        # The menu is narrow; "Kopírovat ssh příkaz" ran into its "Shift+Ctrl+C".
+        from ssh_wallet.ui.window import host_menu
+
+        sections = host_menu()
+        for i in range(sections.get_n_items()):
+            section = sections.get_item_link(i, "section")
+            for j in range(section.get_n_items()):
+                self.assertEqual(section.get_item_attribute_value(j, "accel").get_string(), "")
+
+    def test_menu_opens_at_the_pointer_and_selects_the_row(self):
+        [row] = [r for r in self.window._rows if r.host.name == "b"]
+
+        self.window._open_menu(row, 120.7, 95.2)
+
+        menu = self.window.listbox.get_last_child()
+        self.assertIsInstance(menu, Gtk.PopoverMenu)
+        ok, rect = menu.get_pointing_to()
+        self.assertEqual((ok, rect.x, rect.y), (True, 120, 95))
+        self.assertEqual(self.selected(), "b")
+        menu.popdown()
+        menu.unparent()
+
+    def test_connect(self):
+        self.select("b")
+
+        self.run_action("connect-host")
+
+        self.assertEqual(self.launch.commands[0].argv[-1], "b.example")
+
+    def test_copy_puts_the_ssh_command_on_the_clipboard(self):
+        self.select("b")
+
+        self.run_action("copy-command")
+
+        result = []
+        with warnings.catch_warnings():
+            # PyGObject's asyncio glue warns about deprecated policy APIs on Python 3.14.
+            warnings.simplefilter("ignore", DeprecationWarning)
+            self.window.get_clipboard().read_text_async(None, lambda c, r: result.append(c.read_text_finish(r)))
+            context = GLib.MainContext.default()
+            for _ in range(100):
+                if result:
+                    break
+                context.iteration(False)
+        self.assertEqual(result, ["ssh b.example"])
+        self.assertIn("ssh b.example", self.window.last_toast)
+
+    def test_copy_with_a_deleted_jump_host_reports_it(self):
+        self.wallet.save_host(Host(name="b", host="b.example", id="id-b", jump_id="gone"))
+        self.window.reload()
+        self.select("b")
+
+        self.run_action("copy-command")
+
+        self.assertIn("už neexistuje", self.window.last_toast)
+
+    def test_duplicate_selects_the_copy_below_the_original(self):
+        self.vault.passwords["id-a"] = "pw"
+        self.select("a")
+
+        self.run_action("duplicate-host")
+
+        self.assertEqual(self.names(), ["a", "a (kopie)", "b", "c"])
+        self.assertEqual(self.selected(), "a (kopie)")
+        self.assertIsInstance(self.window.get_visible_dialog(), HostDialog)
+
+    def test_delete_asks_first(self):
+        self.select("b")
+
+        self.run_action("delete-host")
+
+        self.assertIsInstance(self.window.get_visible_dialog(), Adw.AlertDialog)
+        self.assertEqual(self.names(), ["a", "b", "c"])
+
+    def test_move_down_and_up_keep_the_selection(self):
+        self.select("a")
+
+        self.run_action("move-down")
+        self.assertEqual(self.names(), ["b", "a", "c"])
+        self.assertEqual(self.selected(), "a")
+
+        self.run_action("move-up")
+        self.assertEqual(self.names(), ["a", "b", "c"])
+        self.assertEqual([h.name for h in self.wallet.hosts], ["a", "b", "c"])
+
+    def test_move_past_the_end_does_nothing(self):
+        self.select("c")
+
+        self.run_action("move-down")
+
+        self.assertEqual(self.names(), ["a", "b", "c"])
+
+    def test_move_while_searching_jumps_over_hidden_hosts(self):
+        self.wallet.save_host(Host(name="a", host="a.example", id="id-a", note="web"))
+        self.wallet.save_host(Host(name="c", host="c.example", id="id-c", note="web"))
+        self.window.reload()
+        self.window.search_entry.set_text("web")
+        self.select("a")
+
+        self.run_action("move-down")
+
+        self.assertEqual([h.name for h in self.wallet.hosts], ["b", "c", "a"])
+        self.assertEqual(self.names(), ["c", "a"])
+
+    def test_dropping_a_row_on_another_moves_it_there(self):
+        [row_a] = [r for r in self.window._rows if r.host.name == "a"]
+        [drop] = [c for c in row_a.observe_controllers() if isinstance(c, Gtk.DropTarget)]
+
+        drop.emit("drop", "id-c", 0.0, 0.0)
+
+        self.assertEqual(self.names(), ["c", "a", "b"])
 
 
 @unittest.skipUnless(HAS_DISPLAY, "needs a display")
